@@ -73,6 +73,7 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                   setState(() {
                     _rotationStartPoint = details.localPosition;
                   });
+                  ref.read(recordingProvider.notifier).recordFrame(force: true);
                 } else {
                   // Movement mode - inizializza tracking
                   setState(() {
@@ -85,6 +86,7 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                     _initialRotation = player.rotation;
                   });
                   ref.read(boardProvider.notifier).selectPlayer(player.id);
+                  ref.read(recordingProvider.notifier).recordFrame(force: true);
                 }
               }
             : null,

@@ -195,23 +195,10 @@ class HomePage extends ConsumerWidget {
                 _ActionCard(
                   icon: Icons.videocam_rounded,
                   title: 'Analisi Video',
-                  subtitle:
-                      user.isPremium ? 'Analizza le tue partite' : '🔒 Solo Premium',
-                  accentColor:
-                      user.isPremium ? Colors.orange : AppTheme.textMuted,
-                  locked: !user.isPremium,
-                  onTap: () {
-                    if (user.isPremium) {
-                      context.go('/video');
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                              'Funzionalità disponibile solo per utenti Premium'),
-                        ),
-                      );
-                    }
-                  },
+                  subtitle: 'Analizza automaticamente le tue partite',
+                  accentColor: Colors.orange,
+                  locked: false,
+                  onTap: () => context.go('/video'),
                 ),
                 const SizedBox(height: 24),
               ],

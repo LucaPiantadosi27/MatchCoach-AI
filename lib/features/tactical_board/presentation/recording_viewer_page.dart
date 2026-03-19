@@ -11,6 +11,9 @@ import 'package:lavagna_tattica/features/tactical_board/providers/recording_prov
 import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/recording_player.dart';
 import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/field_painter.dart';
 import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/drawing_painter.dart';
+import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/draggable_player.dart';
+import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/draggable_equipment.dart';
+import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/grid_painter.dart';
 import 'package:lavagna_tattica/features/tactical_board/presentation/schemes_list_page.dart';
 import 'dart:ui' as ui;
 
@@ -253,21 +256,27 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
                       decoration: BoxDecoration(
-                        color: _section,
+                        color: const Color(0xFF9575CD),
                         borderRadius: BorderRadius.circular(9),
-                        border: Border.all(color: _border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF9575CD).withOpacity(0.3),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.arrow_back_rounded, size: 15, color: _textSec),
+                          Icon(Icons.arrow_back_rounded, size: 15, color: Colors.white),
                           SizedBox(width: 8),
                           Text(
                             'Torna alle Registrazioni',
                             style: TextStyle(
-                              color: _textSec,
+                              color: Colors.white,
                               fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -413,6 +422,15 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
                         painter: FieldPainter(
                           background: currentBackground,
                           backgroundImage: _backgroundImage,
+                          viewMode: ref.watch(fieldViewModeProvider),
+                        ),
+                      ),
+                      // Grid overlay
+                      CustomPaint(
+                        size: Size(
+                            fieldConstraints.maxWidth, fieldConstraints.maxHeight),
+                        painter: GridPainter(
+                          showGrid: ref.watch(showGridProvider),
                         ),
                       ),
                       // Drawings
@@ -421,47 +439,27 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
                             fieldConstraints.maxWidth, fieldConstraints.maxHeight),
                         painter: DrawingPainter(paths: boardState.paths),
                       ),
-                      // Players (view-only)
-                      ...boardState.players.map((player) {
-                        return Positioned(
-                          left: player.position.dx * fieldConstraints.maxWidth - 20,
-                          top: player.position.dy * fieldConstraints.maxHeight - 20,
-                          child: Transform.rotate(
-                            angle: player.rotation * 3.14159 / 180,
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: player.team == TeamType.A
-                                    ? const Color(0xFFE53935)
-                                    : player.team == TeamType.B
-                                        ? const Color(0xFF1565C0)
-                                        : Colors.orange,
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.4),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Text(
-                                  player.label,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
+                      // Players and Equipment (view-only)
+                      AbsorbPointer(
+                        child: Stack(
+                          children: [
+                            ...boardState.players.map((player) {
+                              return DraggablePlayer(
+                                key: ValueKey(player.id),
+                                player: player,
+                                constraints: fieldConstraints,
+                              );
+                            }),
+                            ...boardState.equipment.map((equipment) {
+                              return DraggableEquipment(
+                                key: ValueKey(equipment.id),
+                                equipment: equipment,
+                                constraints: fieldConstraints,
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
                     ],
                   );
                 },

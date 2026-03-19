@@ -136,74 +136,114 @@ class SidebarPanel extends ConsumerWidget {
     final isRecording = recordingState == RecordingState.recording;
     final boardState = ref.watch(boardProvider);
     final hasRecording = boardState.recording != null;
+    final stepCount = ref.watch(recordingStepCountProvider);
 
-    final List<Color> gradientColors = isRecording
-        ? [const Color(0xFFE53935), const Color(0xFFB71C1C)]
-        : hasRecording
+    if (isRecording) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Bottone Aggiungi Step
+          GestureDetector(
+            onTap: () {
+              ref.read(recordingProvider.notifier).addStep();
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF9A826), Color(0xFFF57C00)],
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFF9A826).withAlpha(100),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.add_circle_outline_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'AGGIUNGI STEP ${stepCount + 1}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Bottone Termina Registrazione
+          GestureDetector(
+            onTap: () => _handleStopRecordingAction(ref.context, ref, boardState),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFB71C1C)]),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFB71C1C).withAlpha(128),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.stop_circle_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'TERMINA REGISTRAZIONE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final List<Color> gradientColors = hasRecording
             ? [const Color(0xFF388E3C), const Color(0xFF1B5E20)]
             : [const Color(0xFF1565C0), const Color(0xFF0D47A1)];
 
     return GestureDetector(
-      onTap: () async {
-        if (isRecording) {
-          final recording = ref.read(recordingProvider.notifier).stopRecording();
-          final updatedBoardState = boardState.copyWith(recording: recording);
-          ref.read(boardProvider.notifier).updateState(updatedBoardState);
-
-          final context = ref.context;
-          if (!context.mounted) return;
-
-          final TextEditingController nameController = TextEditingController(
-            text: 'Schema ${DateTime.now().day}/${DateTime.now().month} ${DateTime.now().hour}:${DateTime.now().minute}',
-          );
-
-          final String? name = await showDialog<String>(
-            context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: AppTheme.cardColorElevated,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: _border),
-              ),
-              title: const Text('Salva Registrazione',
-                  style: TextStyle(color: _textPri, fontSize: 16)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '✅ Registrazione: ${recording.duration.toStringAsFixed(1)}s',
-                    style: const TextStyle(color: _accent, fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: nameController,
-                    style: const TextStyle(color: _textPri),
-                    decoration: const InputDecoration(labelText: 'Nome schema'),
-                    autofocus: true,
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Annulla', style: TextStyle(color: _textSec)),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, nameController.text),
-                  style: ElevatedButton.styleFrom(backgroundColor: _accentDim),
-                  child: const Text('Salva'),
-                ),
-              ],
-            ),
-          );
-
-          if (name != null && name.isNotEmpty && context.mounted) {
-            _saveSchemeWithRecording(context, ref, name, updatedBoardState);
-          }
-        } else {
-          ref.read(recordingProvider.notifier).startRecording();
-        }
+      onTap: () {
+        ref.read(recordingProvider.notifier).startRecording();
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -213,9 +253,9 @@ class SidebarPanel extends ConsumerWidget {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: gradientColors[0].withValues(alpha: isRecording ? 0.5 : 0.3),
-              blurRadius: isRecording ? 14 : 8,
-              spreadRadius: isRecording ? 2 : 0,
+              color: gradientColors[0].withAlpha(76),
+              blurRadius: 8,
+              spreadRadius: 0,
               offset: const Offset(0, 3),
             ),
           ],
@@ -224,14 +264,14 @@ class SidebarPanel extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              isRecording ? Icons.stop_circle_rounded : (hasRecording ? Icons.check_circle_rounded : Icons.fiber_manual_record_rounded),
+              hasRecording ? Icons.check_circle_rounded : Icons.fiber_manual_record_rounded,
               color: Colors.white,
               size: 18,
             ),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
-                isRecording ? 'STOP REGISTRAZIONE' : (hasRecording ? 'REGISTRAZIONE SALVATA' : 'AVVIA REGISTRAZIONE'),
+                hasRecording ? 'REGISTRAZIONE SALVATA' : 'AVVIA REGISTRAZIONE',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 11,
@@ -245,6 +285,66 @@ class SidebarPanel extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _handleStopRecordingAction(BuildContext context, WidgetRef ref, BoardState boardState) async {
+    final recording = ref.read(recordingProvider.notifier).stopRecording();
+    final updatedBoardState = boardState.copyWith(recording: recording);
+    ref.read(boardProvider.notifier).updateState(updatedBoardState);
+
+    if (!context.mounted) return;
+
+    final TextEditingController nameController = TextEditingController(
+      text: 'Schema ${DateTime.now().day}/${DateTime.now().month} ${DateTime.now().hour}:${DateTime.now().minute}',
+    );
+
+    final String? name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardColorElevated,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: _border),
+        ),
+        title: const Text('Salva Registrazione',
+            style: TextStyle(color: _textPri, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '✅ Registrazione: ${recording.duration.toStringAsFixed(1)}s',
+              style: const TextStyle(color: _accent, fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: _textPri),
+              decoration: const InputDecoration(labelText: 'Nome schema'),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annulla', style: TextStyle(color: _textSec)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, nameController.text),
+            style: ElevatedButton.styleFrom(backgroundColor: _accentDim),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.isNotEmpty && context.mounted) {
+      _saveSchemeWithRecording(context, ref, name, updatedBoardState);
+    } else {
+      // Clear recording if aborted
+      ref.read(boardProvider.notifier).clearRecording();
+    }
   }
 
   Widget _buildRecordingPlayer() {
@@ -744,13 +844,29 @@ class SidebarPanel extends ConsumerWidget {
       );
       ref.invalidate(userRecordingsProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Registrazione salvata (${boardState.recording!.duration.toStringAsFixed(1)}s)!'),
-            backgroundColor: AppTheme.accentGreenDim,
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppTheme.cardColorElevated,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: _border),
+            ),
+            title: const Text('Operazione completata', style: TextStyle(color: _textPri, fontSize: 16)),
+            content: const Text(
+              'Registrazione salvata con successo!',
+              style: TextStyle(color: _textSec, fontSize: 14)
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: _accentDim),
+                child: const Text('OK'),
+              ),
+            ],
           ),
         );
-        context.go('/schemes');
+        ref.read(boardProvider.notifier).clearRecording();
       }
     } catch (e) {
       if (context.mounted) {

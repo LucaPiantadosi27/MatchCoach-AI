@@ -6,12 +6,15 @@ import 'package:lavagna_tattica/features/tactical_board/providers/board_provider
 
 enum RecordingState { idle, recording, playing, paused }
 
+final recordingStepCountProvider = StateProvider<int>((ref) => 0);
+
 class RecordingNotifier extends StateNotifier<RecordingState> {
   RecordingNotifier(this.ref) : super(RecordingState.idle);
 
   final Ref ref;
   final List<MovementKeyframe> _keyframes = [];
   DateTime? _recordingStartTime;
+  double _lastStepTime = 0.0;
   double _playbackTime = 0.0;
   Map<String, Offset> _initialPositions = {};
   Map<String, double> _initialRotations = {};
@@ -22,10 +25,19 @@ class RecordingNotifier extends StateNotifier<RecordingState> {
       ? 0.0 
       : _keyframes.map((k) => k.timestamp).reduce((a, b) => a > b ? a : b);
 
+  bool _hasStartedMoving = false;
+
   void startRecording() {
     _keyframes.clear();
     _recordingStartTime = DateTime.now();
+    _lastStepTime = 0.0;
+    _hasStartedMoving = false;
     state = RecordingState.recording;
+    
+    // Resetta conteggio step
+    Future.microtask(() {
+      ref.read(recordingStepCountProvider.notifier).state = 0;
+    });
 
     // Salva posizioni iniziali
     final boardState = ref.read(boardProvider);
@@ -49,8 +61,40 @@ class RecordingNotifier extends StateNotifier<RecordingState> {
     }
   }
 
-  void recordFrame() {
+  void addStep() {
     if (state != RecordingState.recording) return;
+
+    _hasStartedMoving = true;
+    // Rimuovi tutti i frame continui creati dopo l'ultimo step
+    _keyframes.removeWhere((k) => k.timestamp > _lastStepTime);
+
+    _lastStepTime += 1.0; // Transizione di 1 secondo
+    ref.read(recordingStepCountProvider.notifier).state++;
+
+    final boardState = ref.read(boardProvider);
+    for (var player in boardState.players) {
+      _keyframes.add(MovementKeyframe(
+        playerId: player.id,
+        position: player.position,
+        rotation: player.rotation,
+        timestamp: _lastStepTime,
+      ));
+    }
+
+    // Risincronizza il tempo reale con la timeline virtuale per la rec. continua futura
+    final offsetMs = (_lastStepTime * 1000).toInt();
+    _recordingStartTime = DateTime.now().subtract(Duration(milliseconds: offsetMs));
+  }
+
+  void recordFrame({bool force = false}) {
+    if (state != RecordingState.recording) return;
+
+    if (!_hasStartedMoving) {
+      _hasStartedMoving = true;
+      // Taglia tutto il tempo morto (es. i primi 5 secondi se hai atteso).
+      // Lascia solo un battito di 200 millisecondi di transizione iniziale.
+      _recordingStartTime = DateTime.now().subtract(const Duration(milliseconds: 200));
+    }
 
     final elapsed = DateTime.now().difference(_recordingStartTime!).inMilliseconds / 1000.0;
     final boardState = ref.read(boardProvider);
@@ -70,7 +114,7 @@ class RecordingNotifier extends StateNotifier<RecordingState> {
       final positionChanged = (player.position - lastKeyframe.position).distance > 0.01;
       final rotationChanged = (player.rotation - lastKeyframe.rotation).abs() > 1.0;
 
-      if (positionChanged || rotationChanged) {
+      if (force || positionChanged || rotationChanged) {
         _keyframes.add(MovementKeyframe(
           playerId: player.id,
           position: player.position,
@@ -134,6 +178,31 @@ class RecordingNotifier extends StateNotifier<RecordingState> {
     }
 
     _applyKeyframesAtTime(_playbackTime);
+  }
+
+  void seekPlayback(double targetTime) {
+    _playbackTime = targetTime.clamp(0.0, duration);
+    _applyKeyframesAtTime(_playbackTime);
+    if (_playbackTime >= duration && state == RecordingState.playing) {
+      state = RecordingState.idle;
+    }
+  }
+
+  void skipToNextStep() {
+    if (_keyframes.isEmpty) return;
+    state = RecordingState.paused;
+    final currentSecond = _playbackTime.floor();
+    final nextTarget = (currentSecond + 1.0).clamp(0.0, duration);
+    seekPlayback(nextTarget);
+  }
+
+  void skipToPreviousStep() {
+    if (_keyframes.isEmpty) return;
+    state = RecordingState.paused;
+    final currentSecond = _playbackTime.ceil();
+    // Se siamo già esatti al secondo, andiamo al precedente vero
+    final prevTarget = (currentSecond - 1.0).clamp(0.0, duration);
+    seekPlayback(prevTarget);
   }
 
   void _resetToInitialPositions() {

@@ -174,6 +174,19 @@ class BoardNotifier extends StateNotifier<BoardState> {
     state = state.copyWith(equipment: []);
   }
 
+  void clearRecording() {
+    state = BoardState(
+      name: state.name,
+      players: state.players,
+      paths: state.paths,
+      equipment: state.equipment,
+      createdAt: state.createdAt,
+      modifiedAt: state.modifiedAt,
+      version: state.version,
+      recording: null, // Forza reset esplico
+    );
+  }
+
   void updateState(BoardState newState) {
     state = newState;
   }

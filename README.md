@@ -150,3 +150,16 @@ Luca - Lavagna Tattica v2.0
 **Performance:** 60fps | **Lag:** Zero | **UX:** Professionale
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+
+
+
+
+
+## Prosssimi passi:
+
+voglio procedere con il sistema di analisi video, ovvero con la possibilità di caricare un video di un'intera partita ed estrapolare dati  grazie all'analisi di un modello AI.
+Sarà una nuova sezione dell'app che garantirà all'utente di avere un match analyst a disposizione al quale è possibile rivolgere qualsiasi tipo di domande sulla partita, per esempio:
+Chi è il giocatore che tira di più?, che tipo di difesa fa la squadra avversaria?, da quale lato prendono più goal? chi è il giocatore che effettua più passaggi? che schema da calcio d'angolo utilizzano di più? ecc..
+
+l'analisi della partita dovrà restituire sempre lo scout con tutte le statistiche  della partita utili per il calcio a 5 e nella sessione relativa al dettaglio dell'analisi in questione vorrei inserire una chat testuale o tramite nota audio in cui il coach può rivolgere delle domande specifiche al modello come riportato precedentemente 

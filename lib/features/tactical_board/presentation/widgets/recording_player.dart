@@ -12,6 +12,7 @@ class RecordingPlayer extends ConsumerStatefulWidget {
 
 class _RecordingPlayerState extends ConsumerState<RecordingPlayer> {
   Timer? _playbackTimer;
+  DateTime? _lastTick;
 
   @override
   void dispose() {
@@ -21,14 +22,22 @@ class _RecordingPlayerState extends ConsumerState<RecordingPlayer> {
 
   void _startPlaybackTimer() {
     _playbackTimer?.cancel();
+    _lastTick = DateTime.now();
     _playbackTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-      ref.read(recordingProvider.notifier).updatePlayback(0.016);
+      if (!mounted) return;
+      final now = DateTime.now();
+      final dt = now.difference(_lastTick!).inMilliseconds / 1000.0;
+      _lastTick = now;
+      ref.read(recordingProvider.notifier).updatePlayback(dt);
+      setState(() {});
     });
   }
 
   void _stopPlaybackTimer() {
     _playbackTimer?.cancel();
   }
+
+  bool _wasPlayingBeforeDrag = false;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +49,7 @@ class _RecordingPlayerState extends ConsumerState<RecordingPlayer> {
     final duration = recordingNotifier.duration;
 
     // Gestisci il timer in base allo stato
-    if (isPlaying) {
+    if (isPlaying && !_wasPlayingBeforeDrag) {
       if (_playbackTimer == null || !_playbackTimer!.isActive) {
         _startPlaybackTimer();
       }
@@ -52,142 +61,134 @@ class _RecordingPlayerState extends ConsumerState<RecordingPlayer> {
       return const SizedBox.shrink();
     }
 
+    // Controlla se è una registrazione palesemente "a step" (durata intera netta o quasi)
+    final bool isExactSteps = duration == duration.roundToDouble();
+
     return Material(
       elevation: 4,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.purple.shade50, Colors.purple.shade100],
-          ),
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.purple.shade100, width: 1),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
+            // Riga 1: Timeline
             Row(
               children: [
-                Icon(Icons.play_circle, color: Colors.purple.shade700, size: 20),
-                const SizedBox(width: 8),
                 Text(
-                  'Player Registrazione',
+                  _formatTime(playbackTime),
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
                     color: Colors.purple.shade900,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 4,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                      activeTrackColor: Colors.purple.shade600,
+                      inactiveTrackColor: Colors.purple.shade100,
+                      thumbColor: Colors.purple.shade600,
+                    ),
+                    child: Slider(
+                      value: playbackTime.clamp(0.0, duration),
+                      min: 0,
+                      max: duration,
+                      divisions: isExactSteps && duration > 0 ? duration.toInt() : null,
+                      onChangeStart: (value) {
+                         setState(() {
+                           _wasPlayingBeforeDrag = isPlaying;
+                         });
+                         if (isPlaying) {
+                           recordingNotifier.pausePlayback();
+                         }
+                      },
+                      onChanged: (value) {
+                        // Se era puramente a step ma per qualche motivo perde aderenza, forza il rounding morbido.
+                        double snappedValue = value;
+                        if (isExactSteps) {
+                           snappedValue = value.roundToDouble();
+                        }
+                        recordingNotifier.seekPlayback(snappedValue);
+                        setState(() {});
+                      },
+                      onChangeEnd: (value) {
+                         if (_wasPlayingBeforeDrag) {
+                            recordingNotifier.resumePlayback();
+                         }
+                         setState(() {
+                           _wasPlayingBeforeDrag = false;
+                         });
+                      },
+                    ),
+                  ),
+                ),
+                Text(
+                  _formatTime(duration),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.purple.shade900,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // Timeline Slider
-            Column(
-              children: [
-                SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                    activeTrackColor: Colors.purple.shade600,
-                    inactiveTrackColor: Colors.purple.shade200,
-                    thumbColor: Colors.purple.shade700,
-                  ),
-                  child: Slider(
-                    value: playbackTime.clamp(0.0, duration),
-                    min: 0,
-                    max: duration,
-                    onChanged: (value) {
-                      recordingNotifier.updatePlayback(value - playbackTime);
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _formatTime(playbackTime),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.purple.shade700,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        _formatTime(duration),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.purple.shade700,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Controls
+            const SizedBox(height: 8),
+            // Riga 2: Controlli
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Skip backward
+                // Previous Step
                 _buildControlButton(
-                  icon: Icons.replay_5,
+                  icon: Icons.skip_previous_rounded,
                   onPressed: () {
-                    recordingNotifier.updatePlayback(-5.0);
+                    recordingNotifier.skipToPreviousStep();
+                    setState(() {});
                   },
-                  color: Colors.purple.shade600,
-                  size: 32,
-                  iconSize: 18,
+                  color: Colors.purple.shade50,
+                  iconColor: Colors.purple.shade700,
+                  size: 36,
+                  iconSize: 22,
                 ),
-                const SizedBox(width: 4),
-
-                // Play/Pause
+                const SizedBox(width: 20),
+                // Play / Pause
                 _buildControlButton(
-                  icon: isPlaying ? Icons.pause : Icons.play_arrow,
+                  icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   onPressed: () {
                     if (isPlaying) {
                       recordingNotifier.pausePlayback();
                     } else if (isPaused) {
                       recordingNotifier.resumePlayback();
                     } else {
-                      // idle o finito - avvia/riavvia
                       recordingNotifier.startPlayback();
                     }
                   },
                   color: Colors.purple.shade700,
-                  size: 40,
+                  iconColor: Colors.white,
+                  size: 48,
                   iconSize: 28,
+                  elevation: 3,
                 ),
-                const SizedBox(width: 4),
-
-                // Skip forward
+                const SizedBox(width: 20),
+                // Next Step
                 _buildControlButton(
-                  icon: Icons.forward_5,
+                  icon: Icons.skip_next_rounded,
                   onPressed: () {
-                    recordingNotifier.updatePlayback(5.0);
+                    recordingNotifier.skipToNextStep();
+                    setState(() {});
                   },
-                  color: Colors.purple.shade600,
-                  size: 32,
-                  iconSize: 18,
-                ),
-                const SizedBox(width: 8),
-
-                // Stop
-                _buildControlButton(
-                  icon: Icons.stop,
-                  onPressed: () {
-                    recordingNotifier.stopPlayback();
-                  },
-                  color: Colors.red.shade400,
-                  size: 32,
-                  iconSize: 18,
+                  color: Colors.purple.shade50,
+                  iconColor: Colors.purple.shade700,
+                  size: 36,
+                  iconSize: 22,
                 ),
               ],
             ),
@@ -201,11 +202,14 @@ class _RecordingPlayerState extends ConsumerState<RecordingPlayer> {
     required IconData icon,
     required VoidCallback onPressed,
     required Color color,
+    required Color iconColor,
     double size = 40,
     double iconSize = 24,
+    double elevation = 1,
   }) {
     return Material(
-      elevation: 2,
+      elevation: elevation,
+      shadowColor: color.withOpacity(0.4),
       borderRadius: BorderRadius.circular(size / 2),
       child: InkWell(
         onTap: onPressed,
@@ -219,7 +223,7 @@ class _RecordingPlayerState extends ConsumerState<RecordingPlayer> {
           ),
           child: Icon(
             icon,
-            color: Colors.white,
+            color: iconColor,
             size: iconSize,
           ),
         ),

@@ -157,3 +157,46 @@ CREATE INDEX IF NOT EXISTS idx_recordings_folder_id ON recordings(folder_id);
 -- SELECT * FROM teams LIMIT 1;
 -- SELECT * FROM team_players LIMIT 1;
 -- SELECT * FROM folders LIMIT 1;
+
+
+-- ============================================
+-- TABELLA: match_analysis (Video Analysis con IA)
+-- Gestione analisi partite con Gemini
+-- ============================================
+
+CREATE TABLE match_analysis (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  title TEXT NOT NULL,
+  video_url TEXT NOT NULL,
+  storage_path TEXT,
+  gemini_file_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending, uploading, processing, completed, error
+  statistics JSONB, -- Contiene ScoutStatistics
+  error_message TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indici per performance
+CREATE INDEX idx_match_analysis_user_id ON match_analysis(user_id);
+CREATE INDEX idx_match_analysis_status ON match_analysis(status);
+
+-- RLS per match_analysis
+ALTER TABLE match_analysis ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own match analysis"
+  ON match_analysis FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own match analysis"
+  ON match_analysis FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own match analysis"
+  ON match_analysis FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own match analysis"
+  ON match_analysis FOR DELETE
+  USING (auth.uid() = user_id);

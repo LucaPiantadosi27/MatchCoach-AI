@@ -83,6 +83,30 @@ class _PlayerPainter extends CustomPainter {
       canvas.drawCircle(center, bodyRadius + 4, glowPaint);
     }
 
+    // Draw arms border
+    final armBorderWidth = player.isSelected ? 3.0 : 2.0;
+    final armBorderColor = player.isSelected ? Colors.yellow : Colors.white;
+
+    final armBorderPaint = Paint()
+      ..color = armBorderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = armWidth + armBorderWidth * 2
+      ..strokeCap = StrokeCap.round;
+
+    // Left arm border
+    canvas.drawLine(
+      Offset(center.dx - bodyRadius * 0.7, center.dy),
+      Offset(center.dx - bodyRadius * 0.7 - armLength, center.dy - armLength * 0.5),
+      armBorderPaint,
+    );
+
+    // Right arm border
+    canvas.drawLine(
+      Offset(center.dx + bodyRadius * 0.7, center.dy),
+      Offset(center.dx + bodyRadius * 0.7 + armLength, center.dy - armLength * 0.5),
+      armBorderPaint,
+    );
+
     // Draw arms (lateral extensions)
     final armPaint = Paint()
       ..color = teamColor.withOpacity(0.8)

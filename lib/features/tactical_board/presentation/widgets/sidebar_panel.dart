@@ -842,6 +842,7 @@ class SidebarPanel extends ConsumerWidget {
         name: name,
         recording: boardState.recording!,
       );
+      await ref.read(userProvider.notifier).incrementSchemesCount();
       ref.invalidate(userRecordingsProvider);
       if (context.mounted) {
         await showDialog(

@@ -84,7 +84,7 @@ class _RecordingPlayerState extends ConsumerState<RecordingPlayer> {
                   _formatTime(playbackTime),
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.purple.shade900,
+                    color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -135,7 +135,7 @@ class _RecordingPlayerState extends ConsumerState<RecordingPlayer> {
                   _formatTime(duration),
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.purple.shade900,
+                    color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

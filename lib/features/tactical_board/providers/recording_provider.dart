@@ -290,6 +290,8 @@ class RecordingNotifier extends StateNotifier<RecordingState> {
   void loadRecording(MovementRecording recording) {
     _keyframes.clear();
     _keyframes.addAll(recording.keyframes);
+    _playbackTime = 0.0;
+    _hasStartedMoving = false;
     
     // Estrai posizioni iniziali dalla registrazione
     _initialPositions.clear();
@@ -299,6 +301,10 @@ class RecordingNotifier extends StateNotifier<RecordingState> {
       _initialPositions[kf.playerId] = kf.position;
       _initialRotations[kf.playerId] = kf.rotation;
     }
+
+    // Applica subito lo stato iniziale al board e notifica i listener
+    _applyKeyframesAtTime(0.0);
+    state = RecordingState.paused;
   }
 }
 

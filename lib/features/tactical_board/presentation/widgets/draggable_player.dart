@@ -66,12 +66,12 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
           });
         },
         // Drag for movement or rotation
-        onPanStart: mode == InteractionMode.move
+        onScaleStart: mode == InteractionMode.move
             ? (details) {
                 if (_rotationStartPoint != null) {
                   // Rotation mode
                   setState(() {
-                    _rotationStartPoint = details.localPosition;
+                    _rotationStartPoint = details.localFocalPoint;
                   });
                   ref.read(recordingProvider.notifier).recordFrame(force: true);
                 } else {
@@ -81,7 +81,7 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                       player.position.dx * widget.constraints.maxWidth,
                       player.position.dy * widget.constraints.maxHeight,
                     );
-                    _panStartPosition = details.localPosition;
+                    _panStartPosition = details.localFocalPoint;
                     _isHorizontalGesture = null; // Determineremo dopo
                     _initialRotation = player.rotation;
                   });
@@ -90,12 +90,12 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                 }
               }
             : null,
-        onPanUpdate: mode == InteractionMode.move
+        onScaleUpdate: mode == InteractionMode.move
             ? (details) {
                 if (_rotationStartPoint != null) {
                   // Rotation gesture - calcola angolo dal centro della pedina (360°)
                   final center = const Offset(20, 20);
-                  final currentVector = details.localPosition - center;
+                  final currentVector = details.localFocalPoint - center;
                   
                   // Usa atan2 per calcolo angolo preciso in tutte le direzioni
                   final angle = (atan2(currentVector.dy, currentVector.dx) * 180 / 3.14159) + 90;
@@ -110,10 +110,20 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                   
                   // Registra il frame se in modalità recording
                   ref.read(recordingProvider.notifier).recordFrame();
+                } else if (details.pointerCount >= 2) {
+                  // TWO-FINGER ROTATION GESTURE (Pinch-to-rotate come una manopola per tablet/smartphone)
+                  final rotationDelta = details.rotation * 180 / 3.14159;
+                  final newRotation = (_initialRotation + rotationDelta) % 360;
+                  
+                  ref.read(boardProvider.notifier).rotatePlayer(
+                    player.id,
+                    newRotation < 0 ? newRotation + 360 : newRotation,
+                  );
+                  ref.read(recordingProvider.notifier).recordFrame();
                 } else if (_dragOffset != null && _panStartPosition != null) {
-                  // Determina se è un gesto orizzontale o verticale
+                  // Determina se è un gesto orizzontale o verticale (fallback a 1 singolo dito per mouse e vecchi usage)
                   if (_isHorizontalGesture == null) {
-                    final deltaFromStart = details.localPosition - _panStartPosition!;
+                    final deltaFromStart = details.localFocalPoint - _panStartPosition!;
                     final absX = deltaFromStart.dx.abs();
                     final absY = deltaFromStart.dy.abs();
                     
@@ -126,8 +136,8 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                   }
                   
                   if (_isHorizontalGesture == true) {
-                    // Rotazione con swipe orizzontale
-                    final deltaX = details.localPosition.dx - _panStartPosition!.dx;
+                    // Rotazione con swipe orizzontale (mouse drag axis x)
+                    final deltaX = details.localFocalPoint.dx - _panStartPosition!.dx;
                     // Ogni 50 pixel = 90 gradi
                     final rotationDelta = (deltaX / 50) * 90;
                     final newRotation = (_initialRotation + rotationDelta) % 360;
@@ -139,9 +149,9 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                     
                     ref.read(recordingProvider.notifier).recordFrame();
                   } else if (_isHorizontalGesture == false) {
-                    // Movement gesture normale
+                    // Movement gesture normale a un dito / cursore
                     setState(() {
-                      _dragOffset = _dragOffset! + details.delta;
+                      _dragOffset = _dragOffset! + details.focalPointDelta;
                     });
                     
                     // Aggiorna posizione temporanea nel provider per la registrazione
@@ -159,7 +169,7 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                 }
               }
             : null,
-        onPanEnd: mode == InteractionMode.move
+        onScaleEnd: mode == InteractionMode.move
             ? (details) {
                 if (_rotationStartPoint != null) {
                   // End rotation mode

@@ -182,7 +182,10 @@ class _SchemePreviewDialogState extends ConsumerState<SchemePreviewDialog>
                             children: [
                               Text(
                                 'Registrazione: ${widget.boardState.recording!.duration.toStringAsFixed(1)}s',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               LinearProgressIndicator(

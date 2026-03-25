@@ -15,6 +15,32 @@ class VideoAnalysisPage extends ConsumerStatefulWidget {
   ConsumerState<VideoAnalysisPage> createState() => _VideoAnalysisPageState();
 }
 
+class _TipBullet extends StatelessWidget {
+  final String text;
+
+  const _TipBullet({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle, size: 16, color: Colors.greenAccent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
   File? _selectedVideo;
   VideoPlayerController? _videoController;
@@ -117,60 +143,116 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
             const SizedBox(height: 32),
 
             // Video Preview Area
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey[800]!),
-                ),
-                child: _selectedVideo == null
-                    ? InkWell(
-                        onTap: _pickVideo,
+            Container(
+              height: _selectedVideo == null ? 280 : 360,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey[800]!),
+              ),
+              child: _selectedVideo == null
+                  ? InkWell(
+                      onTap: _pickVideo,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.add_a_photo, size: 48, color: Colors.grey),
-                            const SizedBox(height: 12),
-                            Text('Seleziona Video dalla Galleria',
-                                style: TextStyle(color: Colors.grey[400])),
-                          ],
-                        ),
-                      )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            if (_videoController != null &&
-                                _videoController!.value.isInitialized)
-                              VideoPlayer(_videoController!)
-                            else
-                              const CircularProgressIndicator(),
-                            
-                            IconButton(
-                              icon: Icon(
-                                _videoController?.value.isPlaying ?? false
-                                    ? Icons.pause_circle_filled
-                                    : Icons.play_circle_filled,
-                                size: 64,
-                                color: Colors.white.withValues(alpha: 0.8),
+                            const Icon(Icons.cloud_upload_rounded,
+                                size: 56, color: Colors.white70),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Carica il video della partita',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
                               ),
-                              onPressed: () {
-                                setState(() {
-                                  _videoController!.value.isPlaying
-                                      ? _videoController!.pause()
-                                      : _videoController!.play();
-                                });
-                              },
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Supportati MP4 e MOV • max 30s per upload rapido',
+                              style: TextStyle(color: Colors.grey[400]),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 18),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 18, vertical: 10),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                              child: const Text(
+                                'Tocca per selezionare un file',
+                                style: TextStyle(color: Colors.white),
+                              ),
                             ),
                           ],
                         ),
                       ),
+                    )
+                  : ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          if (_videoController != null &&
+                              _videoController!.value.isInitialized)
+                            VideoPlayer(_videoController!)
+                          else
+                            const CircularProgressIndicator(),
+                          IconButton(
+                            icon: Icon(
+                              _videoController?.value.isPlaying ?? false
+                                  ? Icons.pause_circle_filled
+                                  : Icons.play_circle_filled,
+                              size: 64,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _videoController!.value.isPlaying
+                                    ? _videoController!.pause()
+                                    : _videoController!.play();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 24),
+
+            // Tips List
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade800),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Cosa puoi fare qui',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  _TipBullet(text: 'Carica una singola partita inquadrata dall’alto o laterale'),
+                  _TipBullet(text: 'L’AI traccia i movimenti e genera statistiche automaticamente'),
+                  _TipBullet(text: 'Ricevi uno scout completo e chatta col modello per domande mirate'),
+                  _TipBullet(text: 'Puoi ricaricare un nuovo video in qualsiasi momento'),
+                ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
             if (_selectedVideo != null) ...[
               ElevatedButton.icon(

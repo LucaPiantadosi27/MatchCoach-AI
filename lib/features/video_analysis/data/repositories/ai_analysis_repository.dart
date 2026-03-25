@@ -2,13 +2,14 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../models/match_analysis_model.dart';
 import '../models/scout_statistics.dart';
 
 final aiAnalysisRepositoryProvider = Provider<AiAnalysisRepository>((ref) {
-  // In a real app, this key should come from a secure environment variable or a backend request
-  const apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+  // Estrai in tutta sicurezza l'API KEY protetta dal runtime file
+  final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
   return AiAnalysisRepository(apiKey: apiKey);
 });
 

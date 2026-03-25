@@ -207,7 +207,9 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
                           Text(
                             'Durata: ${savedRecording.recording.duration.toStringAsFixed(1)}s',
                             style: const TextStyle(
-                                fontSize: 11, color: _textSec),
+                              fontSize: 11,
+                              color: Colors.white,
+                            ),
                           ),
                         ],
                       ),
@@ -380,7 +382,7 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
                           '${savedRecording.recording.duration.toStringAsFixed(1)}s',
                           style: const TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF9575CD),
+                            color: Colors.white,
                             fontWeight: FontWeight.w700,
                           ),
                         ),

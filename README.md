@@ -1,6 +1,6 @@
 # Lavagna Tattica v2.0 ⚽
 
-App professionale per allenatori di calcio a 5 con lavagna tattica interattiva, analisi video e gestione schemi.
+App professionale per allenatori di calcio a 5 con lavagna tattica interattiva, analisi video AI driven e gestione schemi.
 
 ## 🎯 Caratteristiche Principali
 

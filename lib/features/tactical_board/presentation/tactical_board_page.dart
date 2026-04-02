@@ -16,6 +16,7 @@ import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/sid
 import 'package:lavagna_tattica/features/tactical_board/presentation/schemes_list_page.dart';
 import 'package:lavagna_tattica/features/tactical_board/providers/board_provider.dart';
 import 'package:lavagna_tattica/features/tactical_board/providers/recording_provider.dart';
+import 'package:lavagna_tattica/features/tactical_board/providers/sidebar_provider.dart';
 import 'package:lavagna_tattica/features/tactical_board/services/export_service.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
@@ -541,10 +542,12 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
     InteractionMode mode,
     Color selectedColor,
   ) {
+    final sidebarVisible = ref.watch(sidebarVisibleProvider);
+    
     return Row(
       children: [
         // Sidebar con sezioni organizzate
-        const SidebarPanel(),
+        if (sidebarVisible) const SidebarPanel(),
         // Full-width field
         Expanded(
           child: Column(
@@ -555,6 +558,14 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                 color: Theme.of(context).cardColor,
                 child: Row(
                   children: [
+                    // Sidebar toggle button
+                    IconButton(
+                      icon: Icon(sidebarVisible ? Icons.menu_open : Icons.menu),
+                      tooltip: sidebarVisible ? 'Nascondi pannello' : 'Mostra pannello',
+                      onPressed: () {
+                        ref.read(sidebarVisibleProvider.notifier).state = !sidebarVisible;
+                      },
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       boardState.name,

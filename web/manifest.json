@@ -1,12 +1,12 @@
 {
-    "name": "lavagna_tattica",
-    "short_name": "lavagna_tattica",
-    "start_url": ".",
+    "name": "MatchCoach - Lavagna Tattica",
+    "short_name": "MatchCoach",
+    "start_url": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#0D1117",
+    "theme_color": "#388E3C",
+    "description": "Lavagna tattica digitale per allenatori. Crea schemi, registra movimenti e analizza video delle partite.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

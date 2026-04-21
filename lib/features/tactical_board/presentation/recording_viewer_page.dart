@@ -45,6 +45,7 @@ class RecordingViewerPage extends ConsumerStatefulWidget {
 
 class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
   ui.Image? _backgroundImage;
+  String? _loadedRecordingId;
 
   @override
   void initState() {
@@ -98,11 +99,14 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
         }
 
         // Load recording into provider
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref
-              .read(recordingProvider.notifier)
-              .loadRecording(savedRecording.recording);
-        });
+        if (_loadedRecordingId != widget.recordingId) {
+          _loadedRecordingId = widget.recordingId;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref
+                .read(recordingProvider.notifier)
+                .loadRecording(savedRecording.recording);
+          });
+        }
 
         return OrientationBuilder(
           builder: (context, orientation) {

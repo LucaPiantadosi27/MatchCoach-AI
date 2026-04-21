@@ -10,6 +10,8 @@ import 'package:lavagna_tattica/features/tactical_board/providers/recording_prov
 import 'package:lavagna_tattica/features/auth/providers/auth_providers.dart';
 import 'package:lavagna_tattica/features/tactical_board/presentation/schemes_list_page.dart';
 import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/recording_player.dart';
+import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/team_color_dropdown.dart';
+import 'package:lavagna_tattica/features/tactical_board/presentation/widgets/equipment_dropdown.dart';
 import 'package:go_router/go_router.dart';
 
 // ─── Colors used throughout the sidebar ───────────────────────────────────────
@@ -105,18 +107,40 @@ class SidebarPanel extends ConsumerWidget {
               ),
             ],
             const _SidebarDivider(),
-            // ── COLORI
+            // ── COLORI PENNARELLO
             _buildSection(
-              title: 'COLORI',
+              title: 'COLORI PENNARELLO',
               icon: Icons.palette_rounded,
               child: _buildColorPicker(ref),
+            ),
+            const _SidebarDivider(),
+            // ── COLORI SQUADRE
+            _buildSection(
+              title: 'COLORI SQUADRE',
+              icon: Icons.groups_rounded,
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: () => _showTeamColorDialog(context, ref, true),
+                    child: const TeamColorDropdown(isTeam1: true),
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => _showTeamColorDialog(context, ref, false),
+                    child: const TeamColorDropdown(isTeam1: false),
+                  ),
+                ],
+              ),
             ),
             const _SidebarDivider(),
             // ── ATTREZZATURE
             _buildSection(
               title: 'ATTREZZATURE',
               icon: Icons.sports_rounded,
-              child: _buildEquipmentGrid(ref),
+              child: GestureDetector(
+                onTap: () => _showEquipmentDialog(context),
+                child: const EquipmentDropdown(),
+              ),
             ),
             const _SidebarDivider(),
             // ── IMPOSTAZIONI
@@ -876,6 +900,22 @@ class SidebarPanel extends ConsumerWidget {
         );
       }
     }
+  }
+
+  // Show team color picker dialog
+  void _showTeamColorDialog(BuildContext context, WidgetRef ref, bool isTeam1) {
+    showDialog(
+      context: context,
+      builder: (context) => TeamColorPickerDialog(isTeam1: isTeam1),
+    );
+  }
+
+  // Show equipment picker dialog
+  void _showEquipmentDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const EquipmentPickerDialog(),
+    );
   }
 }
 

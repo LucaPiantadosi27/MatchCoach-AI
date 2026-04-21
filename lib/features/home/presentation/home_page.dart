@@ -186,8 +186,8 @@ class HomePage extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _ActionCard(
                   icon: Icons.video_library_rounded,
-                  title: 'Registrazioni',
-                  subtitle: '${user.schemesCount} registrazioni salvate',
+                  title: 'Registrazioni salvate',
+                  subtitle: '',
                   accentColor: const Color(0xFF7C4DFF),
                   onTap: () => context.go('/schemes'),
                 ),

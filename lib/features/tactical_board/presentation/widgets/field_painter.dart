@@ -342,11 +342,8 @@ class FieldPainter extends CustomPainter {
   void _drawBackground(Canvas canvas, Size size) {
     switch (background.type) {
       case FieldBackgroundType.green:
-      case FieldBackgroundType.darkGreen:
       case FieldBackgroundType.blue:
       case FieldBackgroundType.lightBlue:
-      case FieldBackgroundType.red:
-      case FieldBackgroundType.orange:
       case FieldBackgroundType.grey:
         // Solid color background
         canvas.drawRect(

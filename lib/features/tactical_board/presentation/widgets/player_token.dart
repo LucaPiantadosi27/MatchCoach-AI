@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lavagna_tattica/features/tactical_board/data/models/player_model.dart';
+import 'package:lavagna_tattica/features/tactical_board/providers/team_colors_provider.dart';
 import 'dart:math' as math;
 
-class PlayerToken extends StatelessWidget {
+class PlayerToken extends ConsumerWidget {
   final PlayerModel player;
 
   const PlayerToken({
@@ -11,12 +13,16 @@ class PlayerToken extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // Ball has different rendering
     if (player.team == TeamType.Ball) {
       return _buildBall();
     }
 
+    // Get team colors from providers
+    final team1Color = ref.watch(team1ColorProvider);
+    final team2Color = ref.watch(team2ColorProvider);
+    
     // Player with rotation and posture
     return Transform.rotate(
       angle: player.rotation * math.pi / 180,
@@ -24,6 +30,8 @@ class PlayerToken extends StatelessWidget {
         size: const Size(40, 40),
         painter: _PlayerPainter(
           player: player,
+          team1Color: team1Color,
+          team2Color: team2Color,
         ),
       ),
     );
@@ -60,8 +68,14 @@ class PlayerToken extends StatelessWidget {
 
 class _PlayerPainter extends CustomPainter {
   final PlayerModel player;
+  final Color team1Color;
+  final Color team2Color;
 
-  _PlayerPainter({required this.player});
+  _PlayerPainter({
+    required this.player,
+    required this.team1Color,
+    required this.team2Color,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -70,8 +84,8 @@ class _PlayerPainter extends CustomPainter {
     final armLength = 10.0;
     final armWidth = 3.0;
 
-    // Team color
-    final teamColor = player.team == TeamType.A ? Colors.red : Colors.blue;
+    // Team color from provider
+    final teamColor = player.team == TeamType.A ? team1Color : team2Color;
 
     // Selection glow
     if (player.isSelected) {
@@ -197,6 +211,8 @@ class _PlayerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PlayerPainter oldDelegate) {
-    return oldDelegate.player != player;
+    return oldDelegate.player != player ||
+           oldDelegate.team1Color != team1Color ||
+           oldDelegate.team2Color != team2Color;
   }
 }

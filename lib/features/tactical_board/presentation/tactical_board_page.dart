@@ -587,20 +587,6 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                       onPressed: () => ref.read(boardProvider.notifier).clear(),
                       tooltip: 'Cancella tutto',
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.save),
-                      onPressed: () => _saveScheme(context, boardState),
-                      tooltip: 'Salva schema',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.image),
-                      onPressed: () => ExportService.shareImage(
-                        _repaintBoundaryKey,
-                        context,
-                        fileName: '${boardState.name}.png',
-                      ),
-                      tooltip: 'Esporta immagine',
-                    ),
                     const SizedBox(width: 8),
                   ],
                 ),

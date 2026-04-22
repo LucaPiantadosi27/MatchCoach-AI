@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -21,7 +22,7 @@ class AiAnalysisRepository {
 
   AiAnalysisRepository({required String apiKey}) : _apiKey = apiKey {
     _model = GenerativeModel(
-      model: 'gemini-1.5-pro',
+      model: 'gemini-1.5-flash',
       apiKey: _apiKey,
       generationConfig: GenerationConfig(
         temperature: 0.2, // Low temperature for more deterministic stats
@@ -121,10 +122,23 @@ class AiAnalysisRepository {
   /// Analizza finalmente la partita processando le statistiche json
   Future<ScoutStatistics> analyzeMatchVideo(XFile videoFile) async {
     if (_apiKey.isEmpty) {
-      throw Exception('Chiave segreta "GEMINI_API_KEY" non è correttamente configurata nel file .env nascosto.');
+      throw Exception(
+        'GEMINI_API_KEY non configurata.\n\n'
+        'Passi per configurare:\n'
+        '1. Vai su https://aistudio.google.com/app/apikey\n'
+        '2. Crea una nuova API key\n'
+        '3. Copia il file .env.example in .env\n'
+        '4. Incolla la tua API key nel file .env\n'
+        '5. Riavvia l\'app'
+      );
     }
 
     try {
+      // Per il web, usa un approccio diverso per evitare CORS
+      if (kIsWeb) {
+        return await _analyzeVideoWeb(videoFile);
+      }
+      
       // 1. Inietta il Video nei server saltando la RAM app
       final fileName = await _uploadLargeVideo(videoFile);
 
@@ -327,5 +341,215 @@ class AiAnalysisRepository {
     } catch (e) {
        throw Exception('Riscontrato un crash letale nel processo di estrazione AI della partita: $e');
     }
+  }
+
+  /// Analisi video specifica per web (evita CORS usando inline data)
+  Future<ScoutStatistics> _analyzeVideoWeb(XFile videoFile) async {
+    try {
+      // Leggi il video come bytes
+      final videoBytes = await videoFile.readAsBytes();
+      
+      // Crea il prompt
+      final prompt = _buildAnalysisPrompt();
+      
+      // Crea DataPart con i bytes del video
+      final videoPart = DataPart('video/mp4', videoBytes);
+      
+      // Genera contenuto con video inline
+      final response = await _model.generateContent([
+        Content.multi([TextPart(prompt), videoPart])
+      ]);
+
+      final rawText = response.text;
+      if (rawText == null || rawText.isEmpty) {
+        throw Exception('Risposta vuota da Gemini.');
+      }
+
+      // Pulisci e parsifica JSON
+      final cleanedText = rawText.replaceAll(RegExp(r'```json\n|```json|```'), '').trim();
+      final Map<String, dynamic> data = jsonDecode(cleanedText);
+
+      return ScoutStatistics.fromJson(data);
+    } catch (e) {
+      throw Exception('Errore nell\'analisi video web: $e');
+    }
+  }
+
+  /// Costruisce il prompt di analisi (riutilizzabile)
+  String _buildAnalysisPrompt() {
+    return '''
+Analizza questo video di una partita di futsal (calcio a 5).
+Estrapola le statistiche tattiche essenziali e restituisci rigorosamente SOLO un oggetto JSON valido 
+con la seguente struttura, non inserire tag markdown "```json" all'inizio o blockquote, ma UNICAMENTE il DATO raw.
+Usa i seguenti dati fittizi come guida per il formato di output da compilare:
+
+{
+  "homeTeam": {
+    "teamName": "Squadra Casa",
+    "possessionAndBuildUp": {
+      "totalPossessionPercent": 55,
+      "possessionByZone": {"defense": 20, "midfield": 50, "attack": 30},
+      "averagePossessionTimeSeconds": 10.2,
+      "totalPossessions": 50,
+      "averagePassesPerPossession": 5.1,
+      "possessionsType": {"sterile": 20, "productive": 30},
+      "passes": {
+        "total": 210,
+        "accuracyPercent": 88,
+        "direction": {"forward": 70, "lateral": 120, "backward": 20},
+        "betweenLines": 15,
+        "keyPasses": 8,
+        "underPressure": 30,
+        "oneTouch": 50,
+        "twoPlusTouches": 160,
+        "longSequences": 10
+      },
+      "progression": {
+        "ballCarries": 25,
+        "dribbles": {"successful": 10, "failed": 4},
+        "defensiveLineBreaks": 8,
+        "finalThirdEntries": 18
+      }
+    },
+    "offensivePhase": {
+      "shots": {
+        "total": 16,
+        "onTarget": 10,
+        "offTarget": 4,
+        "blocked": 2,
+        "xG": 2.5,
+        "insideArea": 11,
+        "outsideArea": 5,
+        "fromSetPieces": 4
+      },
+      "creation": {
+        "chancesCreated": 12,
+        "bigChances": 4,
+        "assists": 2,
+        "preAssists": 2,
+        "offensive1v1Won": 6,
+        "offBallCuts": 15
+      },
+      "mostDangerousPlayer": {
+        "name": "Pivot 1",
+        "shotsGenerated": 5,
+        "individualXG": 1.2,
+        "chancesCreated": 4,
+        "dribblesSuccessful": 5,
+        "offensiveInvolvementPercent": 40
+      }
+    },
+    "defensivePhase": {
+      "pressureAndRecovery": {
+        "ballRecoveries": 28,
+        "recoveryZones": {"high": 8, "medium": 12, "low": 8},
+        "pressing": {"successful": 10, "failed": 5},
+        "averageRecoveryTimeSeconds": 12.5
+      },
+      "duels": {
+        "defensiveWon": 20,
+        "defensiveLost": 8,
+        "successfulTackles": 15,
+        "interceptions": 10,
+        "shotsBlocked": 5,
+        "defensive1v1": 8
+      },
+      "structure": {
+        "defensiveLine": "high",
+        "compactness": "alta",
+        "defensiveRotations": "eccellenti",
+        "criticalErrors": 1
+      }
+    },
+    "transitions": {
+      "offensive": {
+        "counterAttacks": 8,
+        "developmentSpeed": "molto rapida",
+        "outcomes": {"shots": 4, "goals": 1, "lostBalls": 3}
+      },
+      "defensive": {
+        "recoveryTimeSeconds": 3.8,
+        "tacticalFouls": 2,
+        "goalsConcededInTransition": 0
+      }
+    },
+    "playersAnalysis": [
+      {
+        "name": "Laterale 1",
+        "technical": {"touches": 50, "successfulPasses": 42, "dribbles": 4, "shots": 3, "possessionLost": 5},
+        "tactical": {"averagePosition": "ala sinistra", "zonesOccupied": ["fascia sinistra"], "offBallMovements": "continui", "teammateConnections": ["Pivot"]},
+        "efficiency": {"dangerIndex": 9.0, "criticalErrors": 0, "decisionMaking": "propositivo"}
+      }
+    ],
+    "spatialAnalysis": {
+      "teamHeatmap": "prevalenza attacco",
+      "mostUsedZones": ["meta campo avversaria"],
+      "chanceCreationZones": ["area di rigore"],
+      "recoveryZones": ["metà campo"],
+      "spaceOccupation": {"widthUsage": "eccellente", "depthUsage": "costante", "betweenLinesPlay": "efficace"}
+    },
+    "teamTactics": {
+      "system": {"starting": "3-1", "changes": []},
+      "possession": {"buildUp": "elaborata", "rotations": "dinamiche", "pivotUsage": "centrale"},
+      "defense": {"pressing": "ultra-offensivo", "style": "a uomo"}
+    },
+    "setPieces": {
+      "cornersTaken": 6,
+      "cornerRoutines": 4,
+      "freeKicks": 3,
+      "accumulatedFouls": 4,
+      "doublePenalties": 0
+    },
+    "decisionMaking": {
+      "underPressureChoices": "calme",
+      "gameTempo": "serrato",
+      "unforcedErrors": 4,
+      "superiorityChoices": "ottime"
+    },
+    "intensityAndTempo": {
+      "gameSpeed": "molto alta",
+      "actionsPerMinute": 3.5,
+      "tempoChanges": "efficaci",
+      "pressure": "costante"
+    },
+    "advancedIndicators": {
+      "teamXG": 2.5,
+      "teamXA": 1.8,
+      "ppda": 6.2,
+      "possessionsPerShot": 3.1,
+      "offensiveEfficiencyPercent": 20,
+      "defensiveEfficiencyPercent": 10
+    },
+    "scoutInsights": {
+      "lineBreakers": ["Laterale 1"],
+      "superiorityCreators": ["Pivot 1"],
+      "gameSlowers": [],
+      "gameAccelerators": ["Laterale 2"],
+      "recurrentPatterns": ["taglio sul secondo palo"],
+      "weaknesses": ["poca copertura su tiri liberi"]
+    }
+  },
+  "awayTeam": {
+    "teamName": "Squadra Ospite",
+    "possessionAndBuildUp": {
+      "totalPossessionPercent": 45,
+      "possessionByZone": {"defense": 40, "midfield": 40, "attack": 20},
+      "averagePossessionTimeSeconds": 7.5,
+      "totalPossessions": 42,
+      "averagePassesPerPossession": 3.5,
+      "possessionsType": {"sterile": 30, "productive": 12}
+    },
+    "offensivePhase": { "shots": { "total": 10, "xG": 1.2 } },
+    "defensivePhase": { "pressureAndRecovery": { "ballRecoveries": 35 } },
+    "advancedIndicators": { "teamXG": 1.2, "teamXA": 0.8 }
+  },
+  "reportSummary": {
+    "overview": "Match equilibrato ma vinto...",
+    "analysis": "Dettaglio...",
+    "strengthsAndWeaknesses": "...",
+    "conclusions": "..."
+  }
+}
+''';
   }
 }

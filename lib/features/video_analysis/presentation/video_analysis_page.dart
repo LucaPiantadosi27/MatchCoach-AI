@@ -5,11 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 import 'package:lavagna_tattica/features/auth/providers/auth_providers.dart';
-import 'package:lavagna_tattica/features/video_analysis/data/video_service.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/repositories/ai_analysis_repository.dart';
+import 'package:lavagna_tattica/features/video_analysis/data/repositories/video_analysis_repository.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/models/scout_statistics.dart';
-
-final videoServiceProvider = Provider((ref) => VideoService());
 
 class VideoAnalysisPage extends ConsumerStatefulWidget {
   const VideoAnalysisPage({super.key});
@@ -48,8 +46,8 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
   XFile? _selectedVideo;
   VideoPlayerController? _videoController;
   bool _isProcessing = false;
-  String? _uploadUrl;
   ScoutStatistics? _analysisResults;
+  String? _savedAnalysisId;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -64,8 +62,8 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
     if (video != null) {
       setState(() {
         _selectedVideo = video;
-        _uploadUrl = null;
         _analysisResults = null;
+        _savedAnalysisId = null;
       });
       _initializePreview();
     }
@@ -90,28 +88,23 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
     }
   }
 
-  Future<void> _processAndUpload() async {
+  Future<void> _analyzeAndSave() async {
     final user = ref.read(userProvider).valueOrNull;
     if (user == null || _selectedVideo == null) return;
 
     setState(() => _isProcessing = true);
 
     try {
-      final service = ref.read(videoServiceProvider);
-      
-      // Step 1: Compress
-      final processedFile = await service.processVideo(_selectedVideo!);
-      if (processedFile == null) throw Exception('Errore nella compressione video');
+      // Step 1: Analizza il video localmente (senza upload)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Analisi in corso... Questo potrebbe richiedere alcuni minuti.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
 
-      // Step 2: Upload
-      final url = await service.uploadVideo(processedFile, user.id);
-      if (url == null) throw Exception('Errore nell\'upload del video');
-
-      setState(() {
-        _uploadUrl = url;
-      });
-
-      // Step 3: Analysis
       final aiRepo = ref.read(aiAnalysisRepositoryProvider);
       final results = await aiRepo.analyzeMatchVideo(_selectedVideo!);
       
@@ -119,15 +112,46 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
         _analysisResults = results;
       });
 
+      // Step 2: Salva solo il JSON su Supabase (non il video)
+      final analysisRepo = ref.read(videoAnalysisRepositoryProvider);
+      final videoName = _selectedVideo!.name;
+      final analysisId = await analysisRepo.saveAnalysis(
+        userId: user.id,
+        videoName: videoName,
+        analysis: results,
+      );
+
+      setState(() {
+        _savedAnalysisId = analysisId;
+      });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Analisi completata con successo!')),
+          const SnackBar(
+            content: Text('✅ Analisi completata e salvata con successo!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = 'Errore durante l\'analisi';
+        
+        if (e.toString().contains('GEMINI_API_KEY')) {
+          errorMessage = 'Chiave API non configurata. Contatta l\'amministratore.';
+        } else if (e.toString().contains('salvataggio')) {
+          errorMessage = 'Analisi completata ma errore nel salvataggio. Riprova.';
+        } else {
+          errorMessage = 'Errore: ${e.toString()}';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: ${e.toString()}')),
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 5),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -154,7 +178,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
-                        'Carica un video della partita. L\'AI riconoscerà automaticamente giocatori e schemi.',
+                        'Carica un video della partita. L\'AI lo analizzerà localmente senza caricarlo online.',
                         style: TextStyle(color: Colors.grey[300]),
                       ),
                     ),
@@ -195,7 +219,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Supportati MP4 e MOV • max 30s per upload rapido',
+                              'Supportati MP4 e MOV • Qualsiasi dimensione',
                               style: TextStyle(color: Colors.grey[400]),
                               textAlign: TextAlign.center,
                             ),
@@ -267,10 +291,10 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                     ),
                   ),
                   SizedBox(height: 12),
-                  _TipBullet(text: 'Carica una singola partita inquadrata dall’alto o laterale'),
-                  _TipBullet(text: 'L’AI traccia i movimenti e genera statistiche automaticamente'),
-                  _TipBullet(text: 'Ricevi uno scout completo e chatta col modello per domande mirate'),
-                  _TipBullet(text: 'Puoi ricaricare un nuovo video in qualsiasi momento'),
+                  _TipBullet(text: 'Carica un video della partita (qualsiasi dimensione)'),
+                  _TipBullet(text: 'L\'AI analizza il video localmente senza caricarlo online'),
+                  _TipBullet(text: 'Ottieni statistiche complete e scout dettagliato in formato JSON'),
+                  _TipBullet(text: 'I dati vengono salvati automaticamente nel tuo profilo'),
                 ],
               ),
             ),
@@ -278,36 +302,25 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
 
             if (_selectedVideo != null) ...[
               ElevatedButton.icon(
-                onPressed: _isProcessing ? null : _processAndUpload,
+                onPressed: _isProcessing ? null : _analyzeAndSave,
                 icon: _isProcessing
                     ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Icon(Icons.cloud_upload),
-                label: Text(_isProcessing ? 'Elaborazione in corso...' : 'Analizza Video'),
+                    : const Icon(Icons.analytics_rounded),
+                label: Text(_isProcessing ? 'Analisi in corso...' : 'Analizza e Salva'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                ),
               ),
               const SizedBox(height: 12),
               TextButton(
                 onPressed: _isProcessing ? null : _pickVideo,
                 child: const Text('Cambia Video'),
-              ),
-            ],
-
-            if (_uploadUrl != null && _analysisResults == null) ...[
-              const Divider(height: 48),
-              const Text(
-                'Stato Analisi',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const CircularProgressIndicator(strokeWidth: 2),
-                title: const Text('In attesa del server AI'),
-                subtitle: const Text('Il riconoscimento potrebbe richiedere alcuni minuti.'),
-                tileColor: Theme.of(context).cardColor,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ],
 

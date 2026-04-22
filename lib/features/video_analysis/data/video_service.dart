@@ -38,19 +38,22 @@ class VideoService {
       final fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.mp4';
       final path = 'raw/$fileName';
 
-      // Handle both File (mobile) and XFile (web)
-      final fileToUpload = videoFile is File 
-          ? videoFile 
-          : videoFile is XFile 
-              ? File(videoFile.path) 
-              : null;
-      
-      if (fileToUpload == null) return null;
-
-      await supabase.storage.from('videos').upload(
-            path,
-            fileToUpload,
-          );
+      if (kIsWeb) {
+        if (videoFile is! XFile) return null;
+        final bytes = await videoFile.readAsBytes();
+        await supabase.storage.from('videos').uploadBinary(
+              path,
+              bytes,
+              fileOptions: const FileOptions(contentType: 'video/mp4'),
+            );
+      } else {
+        if (videoFile is! File) return null;
+        await supabase.storage.from('videos').upload(
+              path,
+              videoFile,
+              fileOptions: const FileOptions(contentType: 'video/mp4'),
+            );
+      }
 
       return supabase.storage.from('videos').getPublicUrl(path);
     } catch (e) {

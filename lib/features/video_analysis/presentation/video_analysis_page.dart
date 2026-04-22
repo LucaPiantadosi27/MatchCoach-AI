@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 import 'package:lavagna_tattica/features/auth/providers/auth_providers.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/video_service.dart';
+import 'package:lavagna_tattica/features/video_analysis/data/repositories/ai_analysis_repository.dart';
+import 'package:lavagna_tattica/features/video_analysis/data/models/scout_statistics.dart';
 
 final videoServiceProvider = Provider((ref) => VideoService());
 
@@ -47,6 +49,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
   VideoPlayerController? _videoController;
   bool _isProcessing = false;
   String? _uploadUrl;
+  ScoutStatistics? _analysisResults;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -62,6 +65,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
       setState(() {
         _selectedVideo = video;
         _uploadUrl = null;
+        _analysisResults = null;
       });
       _initializePreview();
     }
@@ -107,9 +111,17 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
         _uploadUrl = url;
       });
 
+      // Step 3: Analysis
+      final aiRepo = ref.read(aiAnalysisRepositoryProvider);
+      final results = await aiRepo.analyzeMatchVideo(_selectedVideo!);
+      
+      setState(() {
+        _analysisResults = results;
+      });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Video caricato con successo! L\'AI inizierà l\'analisi a breve.')),
+          const SnackBar(content: Text('Analisi completata con successo!')),
         );
       }
     } catch (e) {
@@ -283,7 +295,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
               ),
             ],
 
-            if (_uploadUrl != null) ...[
+            if (_uploadUrl != null && _analysisResults == null) ...[
               const Divider(height: 48),
               const Text(
                 'Stato Analisi',
@@ -298,8 +310,98 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ],
+
+            if (_analysisResults != null) ...[
+              const Divider(height: 48),
+              const Text(
+                'Risultati Analisi Futsal',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        _analysisResults!.reportSummary.overview,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(_analysisResults!.reportSummary.analysis),
+                      const Divider(height: 32),
+                      
+                      // Comparison Headers
+                      Row(
+                        children: [
+                          Expanded(child: Text(_analysisResults!.homeTeam.teamName, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))),
+                          const SizedBox(width: 16, child: Text('VS', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey))),
+                          Expanded(child: Text(_analysisResults!.awayTeam.teamName, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent))),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      _ComparisonRow(
+                        label: 'Possesso',
+                        homeValue: '${_analysisResults!.homeTeam.possessionAndBuildUp.totalPossessionPercent}%',
+                        awayValue: '${_analysisResults!.awayTeam.possessionAndBuildUp.totalPossessionPercent}%',
+                      ),
+                      _ComparisonRow(
+                        label: 'Tiri Totali',
+                        homeValue: '${_analysisResults!.homeTeam.offensivePhase.shots.total}',
+                        awayValue: '${_analysisResults!.awayTeam.offensivePhase.shots.total}',
+                      ),
+                      _ComparisonRow(
+                        label: 'Expected Goals (xG)',
+                        homeValue: _analysisResults!.homeTeam.advancedIndicators.teamXG.toStringAsFixed(1),
+                        awayValue: _analysisResults!.awayTeam.advancedIndicators.teamXG.toStringAsFixed(1),
+                      ),
+                      _ComparisonRow(
+                        label: 'Recuperi Palla',
+                        homeValue: '${_analysisResults!.homeTeam.defensivePhase.pressureAndRecovery.ballRecoveries}',
+                        awayValue: '${_analysisResults!.awayTeam.defensivePhase.pressureAndRecovery.ballRecoveries}',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ComparisonRow extends StatelessWidget {
+  final String label;
+  final String homeValue;
+  final String awayValue;
+
+  const _ComparisonRow({
+    required this.label,
+    required this.homeValue,
+    required this.awayValue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        children: [
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(child: Text(homeValue, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+              const SizedBox(width: 16),
+              Expanded(child: Text(awayValue, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+            ],
+          ),
+          const Divider(height: 16, color: Colors.white10),
+        ],
       ),
     );
   }

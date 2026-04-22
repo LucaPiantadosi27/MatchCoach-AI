@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -42,7 +43,7 @@ class _TipBullet extends StatelessWidget {
 }
 
 class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
-  File? _selectedVideo;
+  XFile? _selectedVideo;
   VideoPlayerController? _videoController;
   bool _isProcessing = false;
   String? _uploadUrl;
@@ -59,7 +60,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
     final XFile? video = await _picker.pickVideo(source: ImageSource.gallery);
     if (video != null) {
       setState(() {
-        _selectedVideo = File(video.path);
+        _selectedVideo = video;
         _uploadUrl = null;
       });
       _initializePreview();
@@ -70,10 +71,19 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
     if (_selectedVideo == null) return;
 
     await _videoController?.dispose();
-    _videoController = VideoPlayerController.file(_selectedVideo!)
-      ..initialize().then((_) {
-        setState(() {});
-      });
+    
+    // Use network() for web, file() for mobile/desktop
+    if (kIsWeb) {
+      _videoController = VideoPlayerController.network(_selectedVideo!.path)
+        ..initialize().then((_) {
+          setState(() {});
+        });
+    } else {
+      _videoController = VideoPlayerController.file(File(_selectedVideo!.path))
+        ..initialize().then((_) {
+          setState(() {});
+        });
+    }
   }
 
   Future<void> _processAndUpload() async {

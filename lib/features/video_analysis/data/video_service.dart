@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:ffmpeg_kit_flutter_min_gpl/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_min_gpl/return_code.dart';
 import 'package:path_provider/path_provider.dart';
@@ -8,7 +9,8 @@ import 'package:lavagna_tattica/core/supabase_client.dart';
 
 class VideoService {
   /// Compresses and trims video to max 30 seconds for easier processing.
-  Future<File?> processVideo(File inputVideo) async {
+  /// Returns File for mobile, XFile path for web.
+  Future<dynamic> processVideo(XFile inputVideo) async {
     if (kIsWeb) return inputVideo; // Skip compression on web for now
     
     final tempDir = await getTemporaryDirectory();
@@ -31,14 +33,23 @@ class VideoService {
   }
 
   /// Uploads video to Supabase Storage 'videos' bucket.
-  Future<String?> uploadVideo(File videoFile, String userId) async {
+  Future<String?> uploadVideo(dynamic videoFile, String userId) async {
     try {
       final fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.mp4';
       final path = 'raw/$fileName';
 
+      // Handle both File (mobile) and XFile (web)
+      final fileToUpload = videoFile is File 
+          ? videoFile 
+          : videoFile is XFile 
+              ? File(videoFile.path) 
+              : null;
+      
+      if (fileToUpload == null) return null;
+
       await supabase.storage.from('videos').upload(
             path,
-            videoFile,
+            fileToUpload,
           );
 
       return supabase.storage.from('videos').getPublicUrl(path);

@@ -8,6 +8,7 @@ import 'package:lavagna_tattica/features/auth/providers/auth_providers.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/repositories/ai_analysis_repository.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/repositories/video_analysis_repository.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/models/scout_statistics.dart';
+import 'package:lavagna_tattica/features/video_analysis/data/providers/video_service_provider.dart';
 
 class VideoAnalysisPage extends ConsumerStatefulWidget {
   const VideoAnalysisPage({super.key});
@@ -46,6 +47,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
   XFile? _selectedVideo;
   VideoPlayerController? _videoController;
   bool _isProcessing = false;
+  String _processingStatus = '';
   ScoutStatistics? _analysisResults;
   String? _savedAnalysisId;
 
@@ -92,27 +94,39 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
     final user = ref.read(userProvider).valueOrNull;
     if (user == null || _selectedVideo == null) return;
 
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _processingStatus = 'Preparazione video...';
+    });
 
     try {
-      // Step 1: Analizza il video localmente (senza upload)
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Analisi in corso... Questo potrebbe richiedere alcuni minuti.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
+      final videoService = ref.read(videoServiceProvider);
+      final aiRepo = ref.read(aiAnalysisRepositoryProvider);
+      
+      // Step 1: Processamento/Compressione (solo su mobile)
+      setState(() => _processingStatus = kIsWeb ? 'Caricamento video...' : 'Compressione video (max 30s)...');
+      final processedVideo = await videoService.processVideo(_selectedVideo!);
+      
+      XFile videoToAnalyze;
+      if (processedVideo == null) {
+        // Se la compressione fallisce, proviamo con l'originale
+        videoToAnalyze = _selectedVideo!;
+      } else if (processedVideo is File) {
+        videoToAnalyze = XFile(processedVideo.path);
+      } else {
+        videoToAnalyze = processedVideo as XFile;
       }
 
-      final aiRepo = ref.read(aiAnalysisRepositoryProvider);
-      final results = await aiRepo.analyzeMatchVideo(_selectedVideo!);
+      // Step 2: Analisi AI
+      setState(() => _processingStatus = 'Analisi tattica in corso (Gemini Pro)...');
+      final results = await aiRepo.analyzeMatchVideo(videoToAnalyze);
       
       setState(() {
         _analysisResults = results;
+        _processingStatus = 'Salvataggio risultati...';
       });
 
-      // Step 2: Salva solo il JSON su Supabase (non il video)
+      // Step 3: Salva il report su Supabase
       final analysisRepo = ref.read(videoAnalysisRepositoryProvider);
       final videoName = _selectedVideo!.name;
       final analysisId = await analysisRepo.saveAnalysis(
@@ -136,26 +150,42 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
       }
     } catch (e) {
       if (mounted) {
-        String errorMessage = 'Errore durante l\'analisi';
-        
-        if (e.toString().contains('GEMINI_API_KEY')) {
-          errorMessage = 'Chiave API non configurata. Contatta l\'amministratore.';
-        } else if (e.toString().contains('salvataggio')) {
-          errorMessage = 'Analisi completata ma errore nel salvataggio. Riprova.';
-        } else {
-          errorMessage = 'Errore: ${e.toString()}';
-        }
+        debugPrint('Errore Analisi: $e');
+        String errorMessage = e.toString().contains('Exception:') 
+            ? e.toString().split('Exception:').last 
+            : e.toString();
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
-            duration: const Duration(seconds: 5),
+            content: Text('❌ $errorMessage'),
+            duration: const Duration(seconds: 7),
             backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Dettagli',
+              textColor: Colors.white,
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Dettaglio Errore'),
+                    content: SingleChildScrollView(child: Text(e.toString())),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Chiudi')),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         );
       }
     } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _processingStatus = '';
+        });
+      }
     }
   }
 
@@ -178,7 +208,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
-                        'Carica un video della partita. L\'AI lo analizzerà localmente senza caricarlo online.',
+                        'Carica un video della partita. L\'AI analizzerà tattiche, statistiche e movimenti dei giocatori.',
                         style: TextStyle(color: Colors.grey[300]),
                       ),
                     ),
@@ -292,7 +322,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                   ),
                   SizedBox(height: 12),
                   _TipBullet(text: 'Carica un video della partita (qualsiasi dimensione)'),
-                  _TipBullet(text: 'L\'AI analizza il video localmente senza caricarlo online'),
+                  _TipBullet(text: 'L\'AI analizza il video e genera un report completo'),
                   _TipBullet(text: 'Ottieni statistiche complete e scout dettagliato in formato JSON'),
                   _TipBullet(text: 'I dati vengono salvati automaticamente nel tuo profilo'),
                 ],
@@ -310,7 +340,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.analytics_rounded),
-                label: Text(_isProcessing ? 'Analisi in corso...' : 'Analizza e Salva'),
+                label: Text(_isProcessing ? _processingStatus : 'Analizza e Salva'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,

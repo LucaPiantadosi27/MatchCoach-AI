@@ -22,10 +22,11 @@ class AiAnalysisRepository {
 
   AiAnalysisRepository({required String apiKey}) : _apiKey = apiKey {
     _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
+      // Passiamo al modello Pro per un'analisi tattica superiore e una migliore gestione del formato JSON
+      model: 'gemini-1.5-pro',
       apiKey: _apiKey,
       generationConfig: GenerationConfig(
-        temperature: 0.2, // Low temperature for more deterministic stats
+        temperature: 0.1, // Ancora più basso per precisione assoluta
         responseMimeType: 'application/json',
       ),
     );
@@ -97,7 +98,10 @@ class AiAnalysisRepository {
 
   /// Attende la disponibilità del file processato dai supercomputer
   Future<String> _waitForFileActive(String fileName) async {
-    while (true) {
+    int attempts = 0;
+    const maxAttempts = 60; // Max 5 minuti (5s * 60)
+
+    while (attempts < maxAttempts) {
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/$fileName?key=$_apiKey');
       final res = await http.get(url);
       
@@ -106,17 +110,19 @@ class AiAnalysisRepository {
         final state = data['state'];
 
         if (state == 'ACTIVE') {
-          return data['uri']; // Usa questo "URI" per far guardare il video al modello
+          return data['uri'];
         } else if (state == 'FAILED') {
-          throw Exception('Purtroppo l\'Upload a Google ha terminato in stato FAILED, video illeggibile.');
+          throw Exception('L\'elaborazione del video su Google è fallita (Stato: FAILED).');
         }
         
-        // PROCESSING attende per digerire il video (spesso > 10 secondi per i MP4 molto grandi)
+        // PROCESSING attende per digerire il video
         await Future.delayed(const Duration(seconds: 5));
+        attempts++;
       } else {
-        throw Exception('Errore nello status polling polling del file $fileName: HTTP res ${res.statusCode}');
+        throw Exception('Errore nel polling del file: HTTP ${res.statusCode}');
       }
     }
+    throw Exception('Timeout: Il video ha impiegato troppo tempo per essere elaborato (oltre 5 minuti).');
   }
 
   /// Analizza finalmente la partita processando le statistiche json
@@ -329,33 +335,47 @@ class AiAnalysisRepository {
 
       final rawText = response.text;
       if (rawText == null || rawText.isEmpty) {
-        throw Exception('Risposta testuale vuota (blank) o nulla da Gemini.');
+        throw Exception('Il modello Gemini non ha restituito alcuna analisi (risposta vuota).');
       }
 
-      // 4. Bonifica Esterna del JSON (Strippa i Markdown di abbellimento del Modello Base)
-      final cleanedText = rawText.replaceAll(RegExp(r'```json\n|```json|```'), '').trim();
-      final Map<String, dynamic> data = jsonDecode(cleanedText);
+      // 4. Estrazione robusta del JSON
+      String cleanedText = rawText;
+      final startIndex = rawText.indexOf('{');
+      final endIndex = rawText.lastIndexOf('}');
+      
+      if (startIndex != -1 && endIndex != -1) {
+        cleanedText = rawText.substring(startIndex, endIndex + 1);
+      } else {
+        // Fallback al metodo regex se non troviamo parentesi graffe
+        cleanedText = rawText.replaceAll(RegExp(r'```json\n|```json|```'), '').trim();
+      }
 
-      return ScoutStatistics.fromJson(data);
+      try {
+        final Map<String, dynamic> data = jsonDecode(cleanedText);
+        return ScoutStatistics.fromJson(data);
+      } catch (e) {
+        debugPrint('JSON ricevuto: $cleanedText');
+        throw Exception('Errore nel formato dei dati restituiti dall\'IA: $e');
+      }
 
     } catch (e) {
-       throw Exception('Riscontrato un crash letale nel processo di estrazione AI della partita: $e');
+       throw Exception('Errore durante l\'analisi AI: $e');
     }
   }
 
   /// Analisi video specifica per web (evita CORS usando inline data)
   Future<ScoutStatistics> _analyzeVideoWeb(XFile videoFile) async {
     try {
-      // Leggi il video come bytes
+      final length = await videoFile.length();
+      // Limite indicativo di 25MB per DataPart su Web
+      if (length > 25 * 1024 * 1024) {
+        throw Exception('Il video è troppo grande per la versione Web (${(length / (1024 * 1024)).toStringAsFixed(1)}MB). Limite: 25MB. Prova a caricarlo da mobile o usa un video più breve/compresso.');
+      }
+
       final videoBytes = await videoFile.readAsBytes();
-      
-      // Crea il prompt
       final prompt = _buildAnalysisPrompt();
-      
-      // Crea DataPart con i bytes del video
       final videoPart = DataPart('video/mp4', videoBytes);
       
-      // Genera contenuto con video inline
       final response = await _model.generateContent([
         Content.multi([TextPart(prompt), videoPart])
       ]);
@@ -365,10 +385,14 @@ class AiAnalysisRepository {
         throw Exception('Risposta vuota da Gemini.');
       }
 
-      // Pulisci e parsifica JSON
-      final cleanedText = rawText.replaceAll(RegExp(r'```json\n|```json|```'), '').trim();
-      final Map<String, dynamic> data = jsonDecode(cleanedText);
+      String cleanedText = rawText;
+      final startIndex = rawText.indexOf('{');
+      final endIndex = rawText.lastIndexOf('}');
+      if (startIndex != -1 && endIndex != -1) {
+        cleanedText = rawText.substring(startIndex, endIndex + 1);
+      }
 
+      final Map<String, dynamic> data = jsonDecode(cleanedText);
       return ScoutStatistics.fromJson(data);
     } catch (e) {
       throw Exception('Errore nell\'analisi video web: $e');

@@ -9,6 +9,7 @@ import 'package:lavagna_tattica/features/video_analysis/data/repositories/ai_ana
 import 'package:lavagna_tattica/features/video_analysis/data/repositories/video_analysis_repository.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/models/scout_statistics.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/providers/video_service_provider.dart';
+import 'package:lavagna_tattica/features/video_analysis/presentation/widgets/tactical_chat_widget.dart';
 
 class VideoAnalysisPage extends ConsumerStatefulWidget {
   const VideoAnalysisPage({super.key});
@@ -409,6 +410,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                   ),
                 ),
               ),
+              TacticalChatWidget(analysis: _analysisResults!),
             ],
           ],
         ),

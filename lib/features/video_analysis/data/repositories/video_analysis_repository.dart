@@ -12,12 +12,18 @@ class VideoAnalysisRepository {
     required String userId,
     required String videoName,
     required ScoutStatistics analysis,
+    int promptTokens = 0,
+    int completionTokens = 0,
+    int totalTokens = 0,
   }) async {
     try {
       final response = await supabase.from('video_analyses').insert({
         'user_id': userId,
         'video_name': videoName,
         'analysis_data': analysis.toJson(),
+        'prompt_tokens': promptTokens,
+        'completion_tokens': completionTokens,
+        'total_tokens': totalTokens,
         'created_at': DateTime.now().toIso8601String(),
       }).select().single();
 

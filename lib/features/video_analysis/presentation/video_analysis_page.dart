@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 import 'package:lavagna_tattica/features/auth/providers/auth_providers.dart';
@@ -10,9 +11,17 @@ import 'package:lavagna_tattica/features/video_analysis/data/repositories/video_
 import 'package:lavagna_tattica/features/video_analysis/data/models/scout_statistics.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/providers/video_service_provider.dart';
 import 'package:lavagna_tattica/features/video_analysis/presentation/widgets/tactical_chat_widget.dart';
+import 'package:lavagna_tattica/features/video_analysis/presentation/analyses_archive_page.dart';
 
 class VideoAnalysisPage extends ConsumerStatefulWidget {
-  const VideoAnalysisPage({super.key});
+  final ScoutStatistics? initialResults;
+  final String? initialAnalysisId;
+
+  const VideoAnalysisPage({
+    super.key,
+    this.initialResults,
+    this.initialAnalysisId,
+  });
 
   @override
   ConsumerState<VideoAnalysisPage> createState() => _VideoAnalysisPageState();
@@ -51,6 +60,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
   String _processingStatus = '';
   ScoutStatistics? _analysisResults;
   String? _savedAnalysisId;
+  int _totalTokens = 0;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -60,6 +70,15 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialResults != null) {
+      _analysisResults = widget.initialResults;
+      _savedAnalysisId = widget.initialAnalysisId;
+    }
+  }
+
   Future<void> _pickVideo() async {
     final XFile? video = await _picker.pickVideo(source: ImageSource.gallery);
     if (video != null) {
@@ -67,6 +86,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
         _selectedVideo = video;
         _analysisResults = null;
         _savedAnalysisId = null;
+        _totalTokens = 0;
       });
       _initializePreview();
     }
@@ -77,7 +97,6 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
 
     await _videoController?.dispose();
     
-    // Use network() for web, file() for mobile/desktop
     if (kIsWeb) {
       _videoController = VideoPlayerController.network(_selectedVideo!.path)
         ..initialize().then((_) {
@@ -104,13 +123,11 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
       final videoService = ref.read(videoServiceProvider);
       final aiRepo = ref.read(aiAnalysisRepositoryProvider);
       
-      // Step 1: Processamento/Compressione (solo su mobile)
       setState(() => _processingStatus = kIsWeb ? 'Caricamento video...' : 'Compressione video (max 30s)...');
       final processedVideo = await videoService.processVideo(_selectedVideo!);
       
       XFile videoToAnalyze;
       if (processedVideo == null) {
-        // Se la compressione fallisce, proviamo con l'originale
         videoToAnalyze = _selectedVideo!;
       } else if (processedVideo is File) {
         videoToAnalyze = XFile(processedVideo.path);
@@ -118,22 +135,24 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
         videoToAnalyze = processedVideo as XFile;
       }
 
-      // Step 2: Analisi AI
       setState(() => _processingStatus = 'Analisi tattica in corso (Gemini Pro)...');
-      final results = await aiRepo.analyzeMatchVideo(videoToAnalyze);
+      final result = await aiRepo.analyzeMatchVideo(videoToAnalyze);
       
       setState(() {
-        _analysisResults = results;
+        _analysisResults = result.statistics;
+        _totalTokens = result.totalTokens;
         _processingStatus = 'Salvataggio risultati...';
       });
 
-      // Step 3: Salva il report su Supabase
       final analysisRepo = ref.read(videoAnalysisRepositoryProvider);
       final videoName = _selectedVideo!.name;
       final analysisId = await analysisRepo.saveAnalysis(
         userId: user.id,
         videoName: videoName,
-        analysis: results,
+        analysis: result.statistics,
+        promptTokens: result.promptTokens,
+        completionTokens: result.completionTokens,
+        totalTokens: result.totalTokens,
       );
 
       setState(() {
@@ -192,118 +211,196 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Se abbiamo già un ID salvato e dei risultati, siamo in modalità "Sola Lettura / Storico"
+    final bool isHistoricalView = _savedAnalysisId != null && _analysisResults != null;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Analisi Video AI')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.go('/home'),
+          tooltip: 'Torna alla Home',
+        ),
+        title: Text(isHistoricalView ? 'Dettaglio Analisi' : 'Analisi Video AI'),
+        actions: [
+          // Mostra l'archivio solo se non siamo già in una vista storica
+          if (!isHistoricalView)
+            IconButton(
+              icon: const Icon(Icons.history),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AnalysesArchivePage()),
+                );
+              },
+              tooltip: 'Archivio Analisi',
+            ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Info Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, color: Colors.amber),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Carica un video della partita. L\'AI analizzerà tattiche, statistiche e movimenti dei giocatori.',
-                        style: TextStyle(color: Colors.grey[300]),
-                      ),
-                    ),
-                  ],
+            // Se siamo in vista storica, mostriamo un header diverso invece del box info caricamento
+            if (isHistoricalView)
+              Card(
+                color: Colors.green.withValues(alpha: 0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Colors.green, width: 0.5),
                 ),
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Video Preview Area
-            Container(
-              height: _selectedVideo == null ? 280 : 360,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey[800]!),
-              ),
-              child: _selectedVideo == null
-                  ? InkWell(
-                      onTap: _pickVideo,
-                      borderRadius: BorderRadius.circular(16),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.verified, color: Colors.greenAccent),
+                      const SizedBox(width: 16),
+                      Expanded(
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.cloud_upload_rounded,
-                                size: 56, color: Colors.white70),
-                            const SizedBox(height: 16),
                             const Text(
-                              'Carica il video della partita',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                              textAlign: TextAlign.center,
+                              'Analisi Salvata',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                             ),
-                            const SizedBox(height: 8),
                             Text(
-                              'Supportati MP4 e MOV • Qualsiasi dimensione',
-                              style: TextStyle(color: Colors.grey[400]),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 18),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 18, vertical: 10),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(999),
-                                color: Colors.white.withValues(alpha: 0.1),
-                              ),
-                              child: const Text(
-                                'Tocca per selezionare un file',
-                                style: TextStyle(color: Colors.white),
-                              ),
+                              'Questa analisi è archiviata nel tuo profilo ed è consultabile in ogni momento.',
+                              style: TextStyle(color: Colors.grey[400], fontSize: 13),
                             ),
                           ],
                         ),
                       ),
-                    )
-                  : ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          if (_videoController != null &&
-                              _videoController!.value.isInitialized)
-                            VideoPlayer(_videoController!)
-                          else
-                            const CircularProgressIndicator(),
-                          IconButton(
-                            icon: Icon(
-                              _videoController?.value.isPlaying ?? false
-                                  ? Icons.pause_circle_filled
-                                  : Icons.play_circle_filled,
-                              size: 64,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _videoController!.value.isPlaying
-                                    ? _videoController!.pause()
-                                    : _videoController!.play();
-                              });
-                            },
-                          ),
-                        ],
+                    ],
+                  ),
+                ),
+              )
+            else
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.amber),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          'Carica un video della partita. L\'AI analizzerà tattiche, statistiche e movimenti dei giocatori.',
+                          style: TextStyle(color: Colors.grey[300]),
+                        ),
                       ),
-                    ),
-            ),
-            const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+              
+            const SizedBox(height: 32),
 
-            // Tips List
+            // Area Video / Upload: La nascondiamo del tutto se siamo in vista storica per pulire l'interfaccia
+            if (!isHistoricalView) ...[
+              Container(
+                height: _selectedVideo == null ? 280 : 360,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey[800]!),
+                ),
+                child: _selectedVideo == null
+                    ? InkWell(
+                        onTap: _pickVideo,
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.cloud_upload_rounded,
+                                  size: 56, color: Colors.white70),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Carica il video della partita',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Supportati MP4 e MOV • Qualsiasi dimensione',
+                                style: TextStyle(color: Colors.grey[400]),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 18),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 18, vertical: 10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(999),
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                ),
+                                child: const Text(
+                                  'Tocca per selezionare un file',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (_videoController != null &&
+                                _videoController!.value.isInitialized)
+                              VideoPlayer(_videoController!)
+                            else
+                              const CircularProgressIndicator(),
+                            IconButton(
+                              icon: Icon(
+                                _videoController?.value.isPlaying ?? false
+                                    ? Icons.pause_circle_filled
+                                    : Icons.play_circle_filled,
+                                size: 64,
+                                color: Colors.white.withValues(alpha: 0.9),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _videoController!.value.isPlaying
+                                      ? _videoController!.pause()
+                                      : _videoController!.play();
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 16),
+              if (_selectedVideo == null)
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const AnalysesArchivePage()),
+                      );
+                    },
+                    icon: const Icon(Icons.history, color: Colors.cyanAccent),
+                    label: const Text(
+                      'Sfoglia Storico Analisi e Chat',
+                      style: TextStyle(
+                          color: Colors.cyanAccent, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 24),
+            ],
+
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -313,25 +410,32 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
+                children: [
+                  const Text(
                     'Cosa puoi fare qui',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 12),
-                  _TipBullet(text: 'Carica un video della partita (qualsiasi dimensione)'),
-                  _TipBullet(text: 'L\'AI analizza il video e genera un report completo'),
-                  _TipBullet(text: 'Ottieni statistiche complete e scout dettagliato in formato JSON'),
-                  _TipBullet(text: 'I dati vengono salvati automaticamente nel tuo profilo'),
+                  const SizedBox(height: 12),
+                  if (isHistoricalView) ...[
+                    const _TipBullet(text: 'Esplora i dati statistici raccolti durante il match'),
+                    const _TipBullet(text: 'Rivedi l\'analisi tattica prodotta dall\'AI'),
+                    const _TipBullet(text: 'Continua la conversazione con il Coach Assistant'),
+                    const _TipBullet(text: 'Esporta o condividi i punti chiave della partita'),
+                  ] else ...[
+                    const _TipBullet(text: 'Carica il video del match per iniziare l\'analisi'),
+                    const _TipBullet(text: 'Ricevi un report tattico completo e automatizzato'),
+                    const _TipBullet(text: 'Chatta con l\'IA per approfondire aspetti specifici'),
+                    const _TipBullet(text: 'Salva l\'analisi per consultarla in futuro'),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 24),
 
-            if (_selectedVideo != null) ...[
+            if (_selectedVideo != null && !isHistoricalView) ...[
               ElevatedButton.icon(
                 onPressed: _isProcessing ? null : _analyzeAndSave,
                 icon: _isProcessing
@@ -358,7 +462,7 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
             if (_analysisResults != null) ...[
               const Divider(height: 48),
               const Text(
-                'Risultati Analisi Futsal',
+                'Risultati Analisi Tattica',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
@@ -376,7 +480,6 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                       Text(_analysisResults!.reportSummary.analysis),
                       const Divider(height: 32),
                       
-                      // Comparison Headers
                       Row(
                         children: [
                           Expanded(child: Text(_analysisResults!.homeTeam.teamName, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))),
@@ -410,7 +513,11 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                   ),
                 ),
               ),
-              TacticalChatWidget(analysis: _analysisResults!),
+              const SizedBox(height: 32),
+              TacticalChatWidget(
+                analysisId: _savedAnalysisId,
+                analysis: _analysisResults!,
+              ),
             ],
           ],
         ),
@@ -436,16 +543,15 @@ class _ComparisonRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         children: [
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 4),
           Row(
             children: [
-              Expanded(child: Text(homeValue, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-              const SizedBox(width: 16),
-              Expanded(child: Text(awayValue, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+              Expanded(child: Text(homeValue, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+              const Expanded(child: SizedBox()),
+              Expanded(child: Text(awayValue, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
             ],
           ),
-          const Divider(height: 16, color: Colors.white10),
         ],
       ),
     );

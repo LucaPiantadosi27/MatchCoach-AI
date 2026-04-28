@@ -128,6 +128,11 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
         return Scaffold(
           appBar: orientation == Orientation.portrait
               ? AppBar(
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    onPressed: () => context.go('/home'),
+                    tooltip: 'Torna alla Home',
+                  ),
                   title: Text(boardState.name),
                   actions: _buildAppBarActions(context, boardState),
                 )

@@ -6,10 +6,12 @@ import 'package:lavagna_tattica/features/video_analysis/data/repositories/tactic
 
 class TacticalChatWidget extends ConsumerStatefulWidget {
   final ScoutStatistics analysis;
+  final String? analysisId;
 
   const TacticalChatWidget({
     super.key,
     required this.analysis,
+    this.analysisId,
   });
 
   @override
@@ -25,10 +27,26 @@ class _TacticalChatWidgetState extends ConsumerState<TacticalChatWidget> {
   @override
   void initState() {
     super.initState();
+    _initializeChat();
+  }
+
+  Future<void> _initializeChat() async {
     // Inizializza il repository con il contesto dell'analisi
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(tacticalChatRepositoryProvider).setContext(widget.analysis);
-    });
+    final repo = ref.read(tacticalChatRepositoryProvider);
+    repo.setContext(widget.analysis, analysisId: widget.analysisId);
+
+    if (widget.analysisId != null) {
+      setState(() => _isLoading = true);
+      await repo.loadPersistentHistory(widget.analysisId!);
+      if (mounted) {
+        setState(() {
+          _messages.clear();
+          _messages.addAll(repo.history);
+          _isLoading = false;
+        });
+        _scrollToBottom();
+      }
+    }
   }
 
   void _scrollToBottom() {

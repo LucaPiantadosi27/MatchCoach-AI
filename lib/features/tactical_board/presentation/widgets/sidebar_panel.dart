@@ -34,7 +34,7 @@ class SidebarPanel extends ConsumerWidget {
     final isNewScheme = ref.watch(isNewSchemeProvider);
 
     return Container(
-      width: 260,
+      constraints: const BoxConstraints(maxWidth: 280),
       decoration: const BoxDecoration(
         gradient: AppTheme.sidebarGradient,
         border: Border(right: BorderSide(color: _border, width: 1)),

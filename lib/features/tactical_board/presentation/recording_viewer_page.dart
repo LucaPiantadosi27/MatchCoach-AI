@@ -108,18 +108,15 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
           });
         }
 
-        return OrientationBuilder(
-          builder: (context, orientation) {
-            return Scaffold(
-              backgroundColor: AppTheme.surfaceColor,
-              appBar: orientation == Orientation.portrait
-                  ? _buildAppBar(savedRecording)
-                  : null,
-              body: orientation == Orientation.landscape
-                  ? _buildLandscapeLayout(savedRecording)
-                  : _buildPortraitLayout(savedRecording),
-            );
-          },
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isMobile = screenWidth < 768;
+
+        return Scaffold(
+          backgroundColor: AppTheme.surfaceColor,
+          appBar: isMobile ? _buildAppBar(savedRecording) : null,
+          body: isMobile
+              ? _buildPortraitLayout(savedRecording)
+              : _buildLandscapeLayout(savedRecording),
         );
       },
     );
@@ -306,6 +303,11 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Row(
                   children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: _textSec),
+                      tooltip: 'Torna alle Registrazioni',
+                      onPressed: () => context.go('/schemes'),
+                    ),
                     const Icon(Icons.play_circle_rounded,
                         size: 18, color: Color(0xFF9575CD)),
                     const SizedBox(width: 8),
@@ -341,8 +343,32 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
   Widget _buildPortraitLayout(SavedRecording savedRecording) {
     return Column(
       children: [
-        // Field (expandable)
-        Expanded(child: _buildField(savedRecording)),
+        // Field (expandable) - rotated vertically on mobile
+        Expanded(
+          child: Container(
+            color: Colors.black,
+            child: LayoutBuilder(
+              builder: (context, outerConstraints) {
+                final availW = outerConstraints.maxWidth;
+                final availH = outerConstraints.maxHeight;
+                final fieldW = availH;
+                final fieldH = availH * (13 / 20);
+                final scale = (fieldH > availW) ? availW / fieldH : 1.0;
+
+                return Center(
+                  child: SizedBox(
+                    width: fieldH * scale,
+                    height: fieldW * scale,
+                    child: RotatedBox(
+                      quarterTurns: 1,
+                      child: _buildField(savedRecording),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
         // Controls panel at bottom
         Container(
           decoration: const BoxDecoration(

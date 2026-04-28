@@ -18,6 +18,8 @@ import 'package:lavagna_tattica/features/tactical_board/providers/board_provider
 import 'package:lavagna_tattica/features/tactical_board/providers/recording_provider.dart';
 import 'package:lavagna_tattica/features/tactical_board/providers/sidebar_provider.dart';
 import 'package:lavagna_tattica/features/tactical_board/services/export_service.dart';
+import 'package:lavagna_tattica/features/tactical_board/data/models/board_state.dart';
+import 'package:lavagna_tattica/core/theme.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
 
@@ -117,31 +119,78 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
     });
   }
 
+  /// Breakpoint: below this width we use mobile layout
+  static const double _mobileBreakpoint = 768;
+
   @override
   Widget build(BuildContext context) {
     final boardState = ref.watch(boardProvider);
     final mode = ref.watch(interactionModeProvider);
     final selectedColor = ref.watch(selectedColorProvider);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < _mobileBreakpoint;
 
-    return OrientationBuilder(
-      builder: (context, orientation) {
-        return Scaffold(
-          appBar: orientation == Orientation.portrait
-              ? AppBar(
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    onPressed: () => context.go('/home'),
-                    tooltip: 'Torna alla Home',
-                  ),
-                  title: Text(boardState.name),
-                  actions: _buildAppBarActions(context, boardState),
-                )
-              : null,
-          body: orientation == Orientation.landscape
-              ? _buildLandscapeLayout(context, boardState, mode, selectedColor)
-              : _buildPortraitLayout(context, boardState, mode, selectedColor),
-        );
-      },
+    return Scaffold(
+      appBar: isMobile
+          ? AppBar(
+              leading: Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                  tooltip: 'Menu',
+                ),
+              ),
+              title: Text(
+                boardState.name,
+                style: const TextStyle(fontSize: 16),
+                overflow: TextOverflow.ellipsis,
+              ),
+              actions: _buildAppBarActions(context, boardState),
+            )
+          : null,
+      drawer: isMobile
+          ? Drawer(
+              width: 280,
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    // Drawer header with back button
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded),
+                            onPressed: () {
+                              Navigator.of(context).pop(); // close drawer
+                              context.go('/home');
+                            },
+                            tooltip: 'Torna alla Home',
+                          ),
+                          const Expanded(
+                            child: Text(
+                              'Lavagna Tattica',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    const Expanded(child: SidebarPanel()),
+                  ],
+                ),
+              ),
+            )
+          : null,
+      body: isMobile
+          ? _buildMobileLayout(context, boardState, mode, selectedColor)
+          : _buildDesktopLayout(context, boardState, mode, selectedColor),
     );
   }
 
@@ -244,78 +293,63 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
         ];
   }
 
-  Widget _buildPortraitLayout(
+  Widget _buildMobileLayout(
     BuildContext context,
     boardState,
     InteractionMode mode,
     Color selectedColor,
   ) {
-    final lineStyle = ref.watch(selectedLineStyleProvider);
-
     return Column(
-        children: [
-          Expanded(
+      children: [
+        // Field - vertical orientation on mobile (rotated 90°)
+        Expanded(
+          child: Container(
+            color: Colors.black,
             child: LayoutBuilder(
-              builder: (context, constraints) {
-                return GestureDetector(
-                  onPanStart: (d) => _onPanStart(d, constraints),
-                  onPanUpdate: (d) => _onPanUpdate(d, constraints),
-                  onPanEnd: _onPanEnd,
-                  child: Stack(
-                    children: [
-                      // Field
-                      CustomPaint(
-                        size: Size.infinite,
-                        painter: FieldPainter(
-                          background: ref.watch(fieldBackgroundProvider),
-                          backgroundImage: _backgroundImage,
-                          viewMode: ref.watch(fieldViewModeProvider),
-                        ),
-                      ),
-                      // Drawings
-                      CustomPaint(
-                        size: Size.infinite,
-                        painter: DrawingPainter(
-                          paths: boardState.paths,
-                          currentPath: _currentPath,
-                        ),
-                      ),
-                      // Players
-                      ...boardState.players.map((player) {
-                        return DraggablePlayer(
-                          key: ValueKey(player.id),
-                          player: player,
-                          constraints: constraints,
-                        );
-                      }),
-                      // Equipment
-                      ...boardState.equipment.map((equipment) {
-                        return DraggableEquipment(
-                          key: ValueKey(equipment.id),
-                          equipment: equipment,
-                          constraints: constraints,
-                        );
-                      }),
-                    ],
+              builder: (context, outerConstraints) {
+                // The field is drawn horizontally (wider than tall).
+                // We rotate it 90° to display vertically.
+                // The rotated field's visible size: width becomes height and vice versa.
+                final availW = outerConstraints.maxWidth;
+                final availH = outerConstraints.maxHeight;
+                // Field aspect ratio is ~20:13 (horizontal), after rotation it shows as 13:20
+                // Size the field so it fits rotated inside the available space
+                final fieldW = availH; // rotated: field width = container height
+                final fieldH = availH * (13 / 20); // maintain ratio
+                final scale = (fieldH > availW) ? availW / fieldH : 1.0;
+
+                return Center(
+                  child: SizedBox(
+                    width: fieldH * scale,
+                    height: fieldW * scale,
+                    child: RotatedBox(
+                      quarterTurns: 1,
+                      child: _buildField(boardState),
+                    ),
                   ),
                 );
               },
             ),
           ),
-          // Toolbar
-          Container(
-            padding: const EdgeInsets.all(12),
+        ),
+        // Compact bottom toolbar
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
+            border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
+          ),
+          child: SafeArea(
+            top: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Main tools row
+                // Tools + recording in one row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildModeIcon(context, InteractionMode.move, Icons.open_with, 'Muovi'),
-                    _buildModeIcon(context, InteractionMode.draw, Icons.gesture, 'Disegna'),
-                    // Line style picker (visible when in draw mode)
+                    _buildModeIconCompact(context, InteractionMode.move, Icons.open_with, 'Muovi'),
+                    _buildModeIconCompact(context, InteractionMode.draw, Icons.gesture, 'Disegna'),
                     if (mode == InteractionMode.draw)
                       _buildLineStyleButton(context),
                     // Color Picker
@@ -327,8 +361,8 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                             colors[(currentIndex + 1) % colors.length];
                       },
                       child: Container(
-                        width: 32,
-                        height: 32,
+                        width: 26,
+                        height: 26,
                         decoration: BoxDecoration(
                           color: selectedColor,
                           shape: BoxShape.circle,
@@ -336,48 +370,208 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                         ),
                       ),
                     ),
+                    // Recording button inline
+                    _buildMobileRecordingButton(context, boardState),
                   ],
                 ),
-                const SizedBox(height: 8),
-                const Divider(height: 1),
-                const SizedBox(height: 8),
-                // Player management
+                const SizedBox(height: 4),
+                // Player management row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        ref.read(boardProvider.notifier).addPlayer(TeamType.A);
-                      },
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('Rosso', style: TextStyle(fontSize: 12)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        ref.read(boardProvider.notifier).addPlayer(TeamType.B);
-                      },
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('Blu', style: TextStyle(fontSize: 12)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                    ),
-                    _buildModeIcon(context, InteractionMode.removePlayer, Icons.person_remove, 'Rimuovi'),
-                    _buildModeIcon(context, InteractionMode.removeEquipment, Icons.delete_outline, 'Rim. att.'),
+                    _buildCompactTeamButton(context, TeamType.A, 'Rosso', Colors.red),
+                    _buildCompactTeamButton(context, TeamType.B, 'Blu', Colors.blue),
+                    _buildModeIconCompact(context, InteractionMode.removePlayer, Icons.person_remove, 'Rimuovi'),
+                    _buildModeIconCompact(context, InteractionMode.removeEquipment, Icons.delete_outline, 'Rim. att.'),
                   ],
                 ),
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  /// Compact inline recording button for the mobile toolbar row
+  Widget _buildMobileRecordingButton(BuildContext context, BoardState boardState) {
+    final recordingState = ref.watch(recordingProvider);
+    final isNewScheme = ref.watch(isNewSchemeProvider);
+    final isRecording = recordingState == RecordingState.recording;
+    final stepCount = ref.watch(recordingStepCountProvider);
+
+    if (!isNewScheme) return const SizedBox.shrink();
+
+    if (isRecording) {
+      // Show Step + Stop buttons
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => ref.read(recordingProvider.notifier).addStep(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFF9A826), Color(0xFFF57C00)]),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add, color: Colors.white, size: 14),
+                  const SizedBox(width: 3),
+                  Text('S${stepCount + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => _handleMobileStopRecording(context, boardState),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFB71C1C)]),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.stop_rounded, color: Colors.white, size: 16),
+            ),
+          ),
         ],
       );
+    }
+
+    // Idle / saved
+    final hasRecording = boardState.recording != null;
+    return GestureDetector(
+      onTap: hasRecording ? null : () => ref.read(recordingProvider.notifier).startRecording(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: hasRecording ? const Color(0xFF388E3C) : const Color(0xFFB71C1C),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(
+          hasRecording ? Icons.check_rounded : Icons.fiber_manual_record_rounded,
+          color: Colors.white,
+          size: 16,
+        ),
+      ),
+    );
+  }
+
+  /// Compact mode icon for mobile toolbar (smaller than default)
+  Widget _buildModeIconCompact(BuildContext context, InteractionMode mode, IconData icon, String label) {
+    final currentMode = ref.watch(interactionModeProvider);
+    final isSelected = currentMode == mode;
+    return InkWell(
+      onTap: () => ref.read(interactionModeProvider.notifier).state = mode,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: isSelected ? Colors.green : Colors.grey, size: 22),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              color: isSelected ? Colors.green : Colors.grey,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleMobileStopRecording(BuildContext context, BoardState boardState) async {
+    final recording = ref.read(recordingProvider.notifier).stopRecording();
+    final updatedBoardState = boardState.copyWith(recording: recording);
+    ref.read(boardProvider.notifier).updateState(updatedBoardState);
+
+    if (!context.mounted) return;
+
+    final TextEditingController nameController = TextEditingController(
+      text: 'Schema ${DateTime.now().day}/${DateTime.now().month} ${DateTime.now().hour}:${DateTime.now().minute}',
+    );
+
+    final String? name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Salva Registrazione', style: TextStyle(fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '✅ Registrazione: ${recording.duration.toStringAsFixed(1)}s',
+              style: const TextStyle(color: AppTheme.accentGreen, fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Nome schema'),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, nameController.text),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.isNotEmpty && context.mounted) {
+      final user = ref.read(userProvider).valueOrNull;
+      if (user == null) return;
+      try {
+        await ref.read(recordingRepositoryProvider).saveRecording(
+          userId: user.id,
+          name: name,
+          recording: updatedBoardState.recording!,
+        );
+        await ref.read(userProvider.notifier).incrementSchemesCount();
+        ref.invalidate(userRecordingsProvider);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Registrazione salvata con successo!')),
+          );
+          ref.read(boardProvider.notifier).clearRecording();
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Errore nel salvataggio: $e')),
+          );
+        }
+      }
+    } else {
+      ref.read(boardProvider.notifier).clearRecording();
+    }
+  }
+
+  Widget _buildCompactTeamButton(BuildContext context, TeamType team, String label, Color color) {
+    return SizedBox(
+      height: 32,
+      child: ElevatedButton.icon(
+        onPressed: () => ref.read(boardProvider.notifier).addPlayer(team),
+        icon: const Icon(Icons.add, size: 14),
+        label: Text(label, style: const TextStyle(fontSize: 11)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
   }
 
   /// Button that opens a popup with all 12 line styles
@@ -541,7 +735,7 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
     }
   }
 
-  Widget _buildLandscapeLayout(
+  Widget _buildDesktopLayout(
     BuildContext context,
     boardState,
     InteractionMode mode,
@@ -563,6 +757,12 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                 color: Theme.of(context).cardColor,
                 child: Row(
                   children: [
+                    // Back to home
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      tooltip: 'Torna alla Home',
+                      onPressed: () => context.go('/home'),
+                    ),
                     // Sidebar toggle button
                     IconButton(
                       icon: Icon(sidebarVisible ? Icons.menu_open : Icons.menu),

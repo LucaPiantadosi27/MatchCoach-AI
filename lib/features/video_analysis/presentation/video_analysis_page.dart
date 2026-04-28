@@ -221,7 +221,10 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
           onPressed: () => context.go('/home'),
           tooltip: 'Torna alla Home',
         ),
-        title: Text(isHistoricalView ? 'Dettaglio Analisi' : 'Analisi Video AI'),
+        title: GestureDetector(
+          onTap: () => context.go('/home'),
+          child: Text(isHistoricalView ? 'Dettaglio Analisi' : 'Analisi Video AI'),
+        ),
         actions: [
           // Mostra l'archivio solo se non siamo già in una vista storica
           if (!isHistoricalView)

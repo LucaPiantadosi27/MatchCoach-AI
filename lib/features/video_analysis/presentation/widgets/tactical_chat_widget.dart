@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/models/chat_message.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/models/scout_statistics.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/repositories/tactical_chat_repository.dart';
+import 'package:lavagna_tattica/features/video_analysis/presentation/widgets/markdown_message_widget.dart';
 
 class TacticalChatWidget extends ConsumerStatefulWidget {
   final ScoutStatistics analysis;
@@ -168,9 +169,9 @@ class _TacticalChatWidgetState extends ConsumerState<TacticalChatWidget> {
                               bottomRight: Radius.circular(isUser ? 0 : 16),
                             ),
                           ),
-                          child: Text(
-                            msg.text,
-                            style: const TextStyle(fontSize: 14),
+                          child: MarkdownMessageWidget(
+                            text: msg.text,
+                            isUser: isUser,
                           ),
                         ),
                       );

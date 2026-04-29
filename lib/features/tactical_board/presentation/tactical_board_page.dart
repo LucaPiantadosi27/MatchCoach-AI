@@ -140,10 +140,17 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                   tooltip: 'Menu',
                 ),
               ),
-              title: Text(
-                boardState.name,
-                style: const TextStyle(fontSize: 16),
-                overflow: TextOverflow.ellipsis,
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      boardState.name,
+                      style: const TextStyle(fontSize: 16),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _buildMobileRecordingButton(context, boardState),
+                ],
               ),
               actions: _buildAppBarActions(context, boardState),
             )
@@ -169,7 +176,7 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                           ),
                           const Expanded(
                             child: Text(
-                              'Lavagna Tattica',
+                              'MatchCoach-AI',
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -187,6 +194,9 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                 ),
               ),
             )
+          : null,
+      bottomNavigationBar: isMobile
+          ? _buildMobileBottomNav(context)
           : null,
       body: isMobile
           ? _buildMobileLayout(context, boardState, mode, selectedColor)
@@ -299,95 +309,48 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
     InteractionMode mode,
     Color selectedColor,
   ) {
-    return Column(
-      children: [
-        // Field - vertical orientation on mobile (rotated 90°)
-        Expanded(
-          child: Container(
-            color: Colors.black,
-            child: LayoutBuilder(
-              builder: (context, outerConstraints) {
-                // The field is drawn horizontally (wider than tall).
-                // We rotate it 90° to display vertically.
-                // The rotated field's visible size: width becomes height and vice versa.
-                final availW = outerConstraints.maxWidth;
-                final availH = outerConstraints.maxHeight;
-                // Field aspect ratio is ~20:13 (horizontal), after rotation it shows as 13:20
-                // Size the field so it fits rotated inside the available space
-                final fieldW = availH; // rotated: field width = container height
-                final fieldH = availH * (13 / 20); // maintain ratio
-                final scale = (fieldH > availW) ? availW / fieldH : 1.0;
+    return Container(
+      color: Colors.black,
+      child: RotatedBox(
+        quarterTurns: 1,
+        child: _buildField(boardState),
+      ),
+    );
+  }
 
-                return Center(
-                  child: SizedBox(
-                    width: fieldH * scale,
-                    height: fieldW * scale,
-                    child: RotatedBox(
-                      quarterTurns: 1,
-                      child: _buildField(boardState),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+  Widget _buildMobileBottomNav(BuildContext context) {
+    return NavigationBar(
+      height: 60,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      selectedIndex: 1, // Lavagna is always selected on /board
+      onDestinationSelected: (index) {
+        switch (index) {
+          case 0: context.go('/home'); break;
+          case 1: break; // Already on board
+          case 2: context.go('/schemes'); break;
+          case 3: context.go('/video'); break;
+        }
+      },
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.home_outlined, size: 22),
+          selectedIcon: Icon(Icons.home_rounded, size: 22),
+          label: 'Home',
         ),
-        // Compact bottom toolbar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Tools + recording in one row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildModeIconCompact(context, InteractionMode.move, Icons.open_with, 'Muovi'),
-                    _buildModeIconCompact(context, InteractionMode.draw, Icons.gesture, 'Disegna'),
-                    if (mode == InteractionMode.draw)
-                      _buildLineStyleButton(context),
-                    // Color Picker
-                    InkWell(
-                      onTap: () {
-                        final colors = [Colors.white, Colors.yellow, Colors.red, Colors.blue, Colors.green, Colors.purple];
-                        final currentIndex = colors.indexOf(selectedColor);
-                        ref.read(selectedColorProvider.notifier).state =
-                            colors[(currentIndex + 1) % colors.length];
-                      },
-                      child: Container(
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          color: selectedColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.grey, width: 2),
-                        ),
-                      ),
-                    ),
-                    // Recording button inline
-                    _buildMobileRecordingButton(context, boardState),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                // Player management row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildCompactTeamButton(context, TeamType.A, 'Rosso', Colors.red),
-                    _buildCompactTeamButton(context, TeamType.B, 'Blu', Colors.blue),
-                    _buildModeIconCompact(context, InteractionMode.removePlayer, Icons.person_remove, 'Rimuovi'),
-                    _buildModeIconCompact(context, InteractionMode.removeEquipment, Icons.delete_outline, 'Rim. att.'),
-                  ],
-                ),
-              ],
-            ),
-          ),
+        NavigationDestination(
+          icon: Icon(Icons.sports_soccer_outlined, size: 22),
+          selectedIcon: Icon(Icons.sports_soccer_rounded, size: 22),
+          label: 'Lavagna',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.folder_outlined, size: 22),
+          selectedIcon: Icon(Icons.folder_rounded, size: 22),
+          label: 'Schemi',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.videocam_outlined, size: 22),
+          selectedIcon: Icon(Icons.videocam_rounded, size: 22),
+          label: 'Video AI',
         ),
       ],
     );

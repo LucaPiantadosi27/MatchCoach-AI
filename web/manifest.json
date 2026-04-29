@@ -1,6 +1,6 @@
 {
-    "name": "MatchCoach - Lavagna Tattica",
-    "short_name": "MatchCoach",
+    "name": "MatchCoach-AI",
+    "short_name": "MatchCoach-AI",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#0D1117",

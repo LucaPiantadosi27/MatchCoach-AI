@@ -41,7 +41,7 @@ class FieldPainter extends CustomPainter {
       ..strokeWidth = 2;
 
     // Applica un margine interno per lasciare un po' di spazio attorno alle linee del campo
-    final double padding = math.max(12.0, math.min(size.width, size.height) * 0.02);
+    final double padding = math.max(4.0, math.min(size.width, size.height) * 0.01);
     final double scaleX = (size.width - 2 * padding) / size.width;
     final double scaleY = (size.height - 2 * padding) / size.height;
 

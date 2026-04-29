@@ -347,25 +347,9 @@ class _RecordingViewerPageState extends ConsumerState<RecordingViewerPage> {
         Expanded(
           child: Container(
             color: Colors.black,
-            child: LayoutBuilder(
-              builder: (context, outerConstraints) {
-                final availW = outerConstraints.maxWidth;
-                final availH = outerConstraints.maxHeight;
-                final fieldW = availH;
-                final fieldH = availH * (13 / 20);
-                final scale = (fieldH > availW) ? availW / fieldH : 1.0;
-
-                return Center(
-                  child: SizedBox(
-                    width: fieldH * scale,
-                    height: fieldW * scale,
-                    child: RotatedBox(
-                      quarterTurns: 1,
-                      child: _buildField(savedRecording),
-                    ),
-                  ),
-                );
-              },
+            child: RotatedBox(
+              quarterTurns: 1,
+              child: _buildField(savedRecording),
             ),
           ),
         ),

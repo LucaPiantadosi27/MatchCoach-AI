@@ -222,7 +222,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
         ),
         const SizedBox(height: 20),
         const Text(
-          'Lavagna Tattica',
+          'MatchCoach-AI',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 28,

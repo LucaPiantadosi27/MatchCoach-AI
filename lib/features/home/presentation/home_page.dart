@@ -110,7 +110,7 @@ class HomePage extends ConsumerWidget {
                           ),
                           const SizedBox(width: 12),
                           const Text(
-                            'Lavagna Tattica',
+                            'MatchCoach-AI',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w700,

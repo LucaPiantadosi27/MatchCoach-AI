@@ -12,6 +12,7 @@ import 'package:lavagna_tattica/features/tactical_board/presentation/recording_v
 import 'package:lavagna_tattica/features/video_analysis/presentation/video_analysis_page.dart';
 import 'package:lavagna_tattica/features/premium/presentation/usage_stats_page.dart';
 import 'package:lavagna_tattica/features/install/presentation/install_page.dart';
+import 'package:lavagna_tattica/features/shared/presentation/mobile_shell.dart';
 
 /// Listenable that notifies GoRouter when auth state changes
 class AuthChangeNotifier extends ChangeNotifier {
@@ -50,6 +51,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // Auth routes (no bottom bar)
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginPage(),
@@ -58,37 +60,45 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/register',
         builder: (context, state) => const RegisterPage(),
       ),
-      GoRoute(
-        path: '/home',
-        builder: (context, state) => const HomePage(),
-      ),
-      // Placeholder routes for Sprint 2+
+      // Board (full-screen, no bottom bar)
       GoRoute(
         path: '/board',
         builder: (context, state) => const TacticalBoardPage(),
       ),
       GoRoute(
-        path: '/schemes',
-        builder: (context, state) => const SchemesListPage(),
-      ),
-      GoRoute(
-        path: '/recording/:id',
-        builder: (context, state) {
-          final recordingId = state.pathParameters['id']!;
-          return RecordingViewerPage(recordingId: recordingId);
-        },
-      ),
-      GoRoute(
-        path: '/video',
-        builder: (context, state) => const VideoAnalysisPage(),
-      ),
-      GoRoute(
         path: '/install',
         builder: (context, state) => const InstallPage(),
       ),
-      GoRoute(
-        path: '/usage',
-        builder: (context, state) => const UsageStatsPage(),
+      // Shell with mobile bottom navigation bar
+      ShellRoute(
+        builder: (context, state, child) {
+          return MobileShell(state: state, child: child);
+        },
+        routes: [
+          GoRoute(
+            path: '/home',
+            builder: (context, state) => const HomePage(),
+          ),
+          GoRoute(
+            path: '/schemes',
+            builder: (context, state) => const SchemesListPage(),
+          ),
+          GoRoute(
+            path: '/recording/:id',
+            builder: (context, state) {
+              final recordingId = state.pathParameters['id']!;
+              return RecordingViewerPage(recordingId: recordingId);
+            },
+          ),
+          GoRoute(
+            path: '/video',
+            builder: (context, state) => const VideoAnalysisPage(),
+          ),
+          GoRoute(
+            path: '/usage',
+            builder: (context, state) => const UsageStatsPage(),
+          ),
+        ],
       ),
     ],
   );

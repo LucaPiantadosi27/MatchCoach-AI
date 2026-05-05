@@ -1,8 +1,79 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:ui_web' as ui_web;
 import 'package:lavagna_tattica/features/tactical_board/data/models/field_background.dart';
 import 'package:lavagna_tattica/features/tactical_board/providers/board_provider.dart';
+
+/// Widget wrapper: renders background (solid color or image) + field lines on top
+class FieldBackground$View extends StatefulWidget {
+  final FieldBackground background;
+  final FieldViewMode viewMode;
+
+  const FieldBackground$View({
+    super.key,
+    required this.background,
+    required this.viewMode,
+  });
+
+  @override
+  State<FieldBackground$View> createState() => _FieldBackground$ViewState();
+}
+
+class _FieldBackground$ViewState extends State<FieldBackground$View> {
+  static const _kParquetViewType = 'field-parquet-bg';
+  static bool _parquetRegistered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _registerParquetView();
+  }
+
+  void _registerParquetView() {
+    if (_parquetRegistered) return;
+    _parquetRegistered = true;
+    // Flutter Web serves assets at 'assets/' prefix in debug mode
+    const assetUrl = 'assets/images/parquet-chiaro.jpg';
+    debugPrint('🪵 Registering parquet HtmlElementView with url: $assetUrl');
+    ui_web.platformViewRegistry.registerViewFactory(
+      _kParquetViewType,
+      (int _) {
+        final div = html.DivElement()
+          ..style.width = '100%'
+          ..style.height = '100%'
+          ..style.backgroundImage = 'url($assetUrl)'
+          ..style.backgroundSize = 'auto'
+          ..style.backgroundRepeat = 'repeat';
+        return div;
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isParquet = widget.background.type == FieldBackgroundType.parquetLight;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (isParquet)
+          const HtmlElementView(viewType: _kParquetViewType)
+        else
+          Container(color: widget.background.solidColor),
+        CustomPaint(
+          painter: FieldPainter(
+            background: widget.background,
+            viewMode: widget.viewMode,
+          ),
+          child: const SizedBox.expand(),
+        ),
+      ],
+    );
+  }
+}
 
 class FieldPainter extends CustomPainter {
   final FieldBackground background;
@@ -353,13 +424,7 @@ class FieldPainter extends CustomPainter {
         break;
 
       case FieldBackgroundType.parquetLight:
-        // Image background with tiling
-        if (backgroundImage != null) {
-          _drawTiledImage(canvas, size, backgroundImage!);
-        } else {
-          // Fallback to generated parquet if image not loaded
-          _drawGeneratedParquet(canvas, size, true);
-        }
+        // HtmlElementView handles the image background
         break;
     }
   }

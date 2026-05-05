@@ -216,15 +216,8 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.go('/home'),
-          tooltip: 'Torna alla Home',
-        ),
-        title: GestureDetector(
-          onTap: () => context.go('/home'),
-          child: Text(isHistoricalView ? 'Dettaglio Analisi' : 'Analisi Video AI'),
-        ),
+        automaticallyImplyLeading: false,
+        title: Text(isHistoricalView ? 'Dettaglio Analisi' : 'Analisi Video AI'),
         actions: [
           // Mostra l'archivio solo se non siamo già in una vista storica
           if (!isHistoricalView)

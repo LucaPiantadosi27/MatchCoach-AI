@@ -33,46 +33,12 @@ class TacticalBoardPage extends ConsumerStatefulWidget {
 class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
   DrawingPath? _currentPath;
   Timer? _recordingTimer;
-  ui.Image? _backgroundImage;
-  FieldBackgroundType? _loadedImageType;
-  final GlobalKey _repaintBoundaryKey = GlobalKey();
+  final GlobalKey _snapshotKey = GlobalKey();
 
   @override
   void dispose() {
     _recordingTimer?.cancel();
     super.dispose();
-  }
-
-  Future<void> _loadBackgroundImage(FieldBackground background) async {
-    if (background.imagePath == null) {
-      setState(() {
-        _backgroundImage = null;
-        _loadedImageType = null;
-      });
-      return;
-    }
-
-    // Evita di ricaricare la stessa immagine
-    if (_loadedImageType == background.type && _backgroundImage != null) {
-      return;
-    }
-
-    try {
-      final data = await DefaultAssetBundle.of(context).load(background.imagePath!);
-      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
-      final frame = await codec.getNextFrame();
-      
-      setState(() {
-        _backgroundImage = frame.image;
-        _loadedImageType = background.type;
-      });
-    } catch (e) {
-      // Se l'immagine non è disponibile, usa il fallback generato
-      setState(() {
-        _backgroundImage = null;
-        _loadedImageType = background.type;
-      });
-    }
   }
 
   void _onPanStart(DragStartDetails details, BoxConstraints constraints) {
@@ -140,19 +106,15 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                   tooltip: 'Menu',
                 ),
               ),
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      boardState.name,
-                      style: const TextStyle(fontSize: 16),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  _buildMobileRecordingButton(context, boardState),
-                ],
+              title: Text(
+                boardState.name,
+                style: const TextStyle(fontSize: 16),
+                overflow: TextOverflow.ellipsis,
               ),
-              actions: _buildAppBarActions(context, boardState),
+              actions: [
+                _buildMobileRecordingButton(context, boardState),
+                ..._buildAppBarActions(context, boardState),
+              ],
             )
           : null,
       drawer: isMobile
@@ -206,10 +168,12 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
 
   List<Widget> _buildAppBarActions(BuildContext context, boardState) {
     final recordingState = ref.watch(recordingProvider);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < _mobileBreakpoint;
     
     return [
-          // Recording controls
-          if (recordingState == RecordingState.idle)
+          // Recording controls (ONLY on desktop - mobile has them in title)
+          if (!isMobile && recordingState == RecordingState.idle)
             IconButton(
               icon: const Icon(Icons.fiber_manual_record, color: Colors.red),
               tooltip: 'Inizia Registrazione',
@@ -221,7 +185,7 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                 );
               },
             ),
-          if (recordingState == RecordingState.recording)
+          if (!isMobile && recordingState == RecordingState.recording)
             IconButton(
               icon: const Icon(Icons.stop, color: Colors.red),
               tooltip: 'Ferma Registrazione',
@@ -230,7 +194,7 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                 ref.read(recordingProvider.notifier).stopRecording();
               },
             ),
-          if (recordingState == RecordingState.recording)
+          if (!isMobile && recordingState == RecordingState.recording)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -244,61 +208,18 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
             ),
           IconButton(
             icon: const Icon(Icons.undo),
+            tooltip: 'Annulla ultima azione',
             onPressed: () => ref.read(boardProvider.notifier).undo(),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_sweep),
-            onPressed: () => ref.read(boardProvider.notifier).clear(),
+            icon: const Icon(Icons.restart_alt_rounded),
+            tooltip: 'Ripristina posizioni di partenza',
+            onPressed: () => _confirmResetPlayers(context),
           ),
           IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: () async {
-              final user = ref.read(userProvider).valueOrNull;
-              if (user == null) return;
-
-              if (!user.canSaveScheme) {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (context) => const PaywallBottomSheet(),
-                );
-                return;
-              }
-
-              final TextEditingController nameController =
-                  TextEditingController(text: boardState.name);
-              final String? name = await showDialog<String>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Salva Schema'),
-                  content: TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(hintText: 'Nome schema'),
-                    autofocus: true,
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Annulla'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, nameController.text),
-                      child: const Text('Salva'),
-                    ),
-                  ],
-                ),
-              );
-
-              if (name != null && name.isNotEmpty) {
-                // Aggiorna solo il nome nello stato
-                ref.read(boardProvider.notifier).state = boardState.copyWith(name: name);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Nome schema aggiornato! Usa il pulsante REGISTRA per salvare.')),
-                  );
-                }
-              }
-            },
+            icon: const Icon(Icons.photo_camera_rounded),
+            tooltip: 'Snapshot campo (PNG)',
+            onPressed: () => _captureSnapshot(boardState.name),
           ),
         ];
   }
@@ -356,7 +277,7 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
     );
   }
 
-  /// Compact inline recording button for the mobile toolbar row
+  /// Mobile recording button - LARGE and VISIBLE for touch
   Widget _buildMobileRecordingButton(BuildContext context, BoardState boardState) {
     final recordingState = ref.watch(recordingProvider);
     final isNewScheme = ref.watch(isNewSchemeProvider);
@@ -366,58 +287,108 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
     if (!isNewScheme) return const SizedBox.shrink();
 
     if (isRecording) {
-      // Show Step + Stop buttons
+      // Recording mode: STEP button + STOP button
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          GestureDetector(
-            onTap: () => ref.read(recordingProvider.notifier).addStep(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFFF9A826), Color(0xFFF57C00)]),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.add, color: Colors.white, size: 14),
-                  const SizedBox(width: 3),
-                  Text('S${stepCount + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                ],
+          // STEP button - large and orange
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => ref.read(recordingProvider.notifier).addStep(),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFFF9A826), Color(0xFFF57C00)]),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFFF57C00).withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.add_circle, color: Colors.white, size: 18),
+                    const SizedBox(width: 4),
+                    Text('STEP ${stepCount + 1}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                  ],
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => _handleMobileStopRecording(context, boardState),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFB71C1C)]),
-                borderRadius: BorderRadius.circular(6),
+          const SizedBox(width: 8),
+          // STOP button - large and red
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                if (mounted) {
+                  _handleMobileStopRecording(context, boardState);
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFB71C1C)]),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFFB71C1C).withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.stop_circle, color: Colors.white, size: 18),
+                    SizedBox(width: 4),
+                    Text('STOP', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                  ],
+                ),
               ),
-              child: const Icon(Icons.stop_rounded, color: Colors.white, size: 16),
             ),
           ),
         ],
       );
     }
 
-    // Idle / saved
+    // Idle mode: START button
     final hasRecording = boardState.recording != null;
-    return GestureDetector(
-      onTap: hasRecording ? null : () => ref.read(recordingProvider.notifier).startRecording(),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: hasRecording ? const Color(0xFF388E3C) : const Color(0xFFB71C1C),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Icon(
-          hasRecording ? Icons.check_rounded : Icons.fiber_manual_record_rounded,
-          color: Colors.white,
-          size: 16,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: hasRecording ? null : () {
+          ref.read(recordingProvider.notifier).startRecording();
+          _recordingTimer = Timer.periodic(
+            const Duration(milliseconds: 100),
+            (_) => ref.read(recordingProvider.notifier).recordFrame(),
+          );
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: hasRecording ? const Color(0xFF388E3C) : const Color(0xFFB71C1C),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: hasRecording ? null : [
+              BoxShadow(color: const Color(0xFFB71C1C).withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 2)),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                hasRecording ? Icons.check_circle : Icons.fiber_manual_record,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                hasRecording ? 'SALVATO' : 'REC',
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -446,12 +417,57 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
     );
   }
 
+  Future<void> _captureSnapshot(String fileName) async {
+    await ExportService.downloadSnapshot(
+      _snapshotKey,
+      context,
+      fileName: fileName,
+      ref: ref,
+    );
+  }
+
+  Future<void> _confirmResetPlayers(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ripristina posizioni'),
+        content: const Text(
+          'Le pedine torneranno alle posizioni di partenza.\nI disegni e le attrezzature rimarranno invariati.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.restart_alt_rounded, size: 18),
+            label: const Text('Ripristina'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      ref.read(boardProvider.notifier).resetPlayers();
+    }
+  }
+
   Future<void> _handleMobileStopRecording(BuildContext context, BoardState boardState) async {
+    _recordingTimer?.cancel();
     final recording = ref.read(recordingProvider.notifier).stopRecording();
     final updatedBoardState = boardState.copyWith(recording: recording);
     ref.read(boardProvider.notifier).updateState(updatedBoardState);
 
-    if (!context.mounted) return;
+    if (!mounted) {
+      print('❌ Widget not mounted, cannot show dialog');
+      return;
+    }
+
+    print('✅ Showing save dialog for recording: ${recording.duration}s');
 
     final TextEditingController nameController = TextEditingController(
       text: 'Schema ${DateTime.now().day}/${DateTime.now().month} ${DateTime.now().hour}:${DateTime.now().minute}',
@@ -459,32 +475,68 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
 
     final String? name = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Salva Registrazione', style: TextStyle(fontSize: 16)),
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('💾 Salva Schema', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '✅ Registrazione: ${recording.duration.toStringAsFixed(1)}s',
-              style: const TextStyle(color: AppTheme.accentGreen, fontWeight: FontWeight.w600, fontSize: 13),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.accentGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.accentGreen.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.timer, color: AppTheme.accentGreen, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Durata: ${recording.duration.toStringAsFixed(1)}s',
+                    style: const TextStyle(color: AppTheme.accentGreen, fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nome schema'),
+              decoration: InputDecoration(
+                labelText: 'Nome schema',
+                hintText: 'Es: Schema 4-2',
+                prefixIcon: const Icon(Icons.edit, size: 20),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               autofocus: true,
+              style: const TextStyle(fontSize: 16),
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+          SizedBox(
+            height: 44,
+            child: TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Annulla', style: TextStyle(fontSize: 15)),
+            ),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, nameController.text),
-            child: const Text('Salva'),
+          SizedBox(
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, nameController.text),
+              icon: const Icon(Icons.save, size: 18),
+              label: const Text('Salva', style: TextStyle(fontSize: 15)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.accentGreen,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
           ),
         ],
       ),
@@ -493,6 +545,14 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
     if (name != null && name.isNotEmpty && context.mounted) {
       final user = ref.read(userProvider).valueOrNull;
       if (user == null) return;
+      
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+      
       try {
         await ref.read(recordingRepositoryProvider).saveRecording(
           userId: user.id,
@@ -501,16 +561,45 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
         );
         await ref.read(userProvider.notifier).incrementSchemesCount();
         ref.invalidate(userRecordingsProvider);
+        
+        // Hide loading
+        if (context.mounted) Navigator.pop(context);
+        
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Registrazione salvata con successo!')),
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Schema salvato!')),
+                ],
+              ),
+              backgroundColor: AppTheme.accentGreen,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
           );
           ref.read(boardProvider.notifier).clearRecording();
         }
       } catch (e) {
+        // Hide loading
+        if (context.mounted) Navigator.pop(context);
+        
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Errore nel salvataggio: $e')),
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('Errore: $e')),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
           );
         }
       }
@@ -720,12 +809,6 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                 color: Theme.of(context).cardColor,
                 child: Row(
                   children: [
-                    // Back to home
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded),
-                      tooltip: 'Torna alla Home',
-                      onPressed: () => context.go('/home'),
-                    ),
                     // Sidebar toggle button
                     IconButton(
                       icon: Icon(sidebarVisible ? Icons.menu_open : Icons.menu),
@@ -748,12 +831,17 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
                     IconButton(
                       icon: const Icon(Icons.undo),
                       onPressed: () => ref.read(boardProvider.notifier).undo(),
-                      tooltip: 'Annulla',
+                      tooltip: 'Annulla ultima azione',
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete_sweep),
-                      onPressed: () => ref.read(boardProvider.notifier).clear(),
-                      tooltip: 'Cancella tutto',
+                      icon: const Icon(Icons.restart_alt_rounded),
+                      onPressed: () => _confirmResetPlayers(context),
+                      tooltip: 'Ripristina posizioni di partenza',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.photo_camera_rounded),
+                      onPressed: () => _captureSnapshot(ref.read(boardProvider).name),
+                      tooltip: 'Snapshot campo (PNG)',
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -772,11 +860,6 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
 
   Widget _buildField(boardState) {
     final background = ref.watch(fieldBackgroundProvider);
-    
-    // Carica immagine se necessario
-    if (background.imagePath != null) {
-      _loadBackgroundImage(background);
-    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -788,17 +871,13 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
             onPanUpdate: (d) => _onPanUpdate(d, constraints),
             onPanEnd: _onPanEnd,
             child: RepaintBoundary(
-              key: _repaintBoundaryKey,
+              key: _snapshotKey,
               child: Stack(
                 children: [
                   // Field with selected background
-                  CustomPaint(
-                    size: Size.infinite,
-                    painter: FieldPainter(
-                      background: background,
-                      backgroundImage: _backgroundImage,
-                      viewMode: ref.watch(fieldViewModeProvider),
-                    ),
+                  FieldBackground$View(
+                    background: background,
+                    viewMode: ref.watch(fieldViewModeProvider),
                   ),
                   // Grid overlay
                   CustomPaint(

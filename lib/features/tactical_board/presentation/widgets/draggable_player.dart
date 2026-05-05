@@ -34,6 +34,7 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
   Widget build(BuildContext context) {
     final mode = ref.watch(interactionModeProvider);
     final player = widget.player;
+    final isMobile = MediaQuery.of(context).size.width < 768;
 
     // Calculate actual position (normalized to pixels)
     final actualPosition = _dragOffset ??
@@ -42,10 +43,14 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
           player.position.dy * widget.constraints.maxHeight,
         );
 
+    // Mobile: larger touch target (44px minimum recommended)
+    final touchPadding = isMobile ? 12.0 : 0.0;
+
     return Positioned(
-      left: actualPosition.dx - 20,
-      top: actualPosition.dy - 20,
+      left: actualPosition.dx - 20 - touchPadding,
+      top: actualPosition.dy - 20 - touchPadding,
       child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
         // Single tap to select or remove
         onTap: () {
           if (mode == InteractionMode.removePlayer) {
@@ -76,6 +81,7 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                   ref.read(recordingProvider.notifier).recordFrame(force: true);
                 } else {
                   // Movement mode - inizializza tracking
+                  ref.read(boardProvider.notifier).beginMove(); // save undo state
                   setState(() {
                     _dragOffset = Offset(
                       player.position.dx * widget.constraints.maxWidth,
@@ -199,10 +205,34 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                 }
               }
             : null,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            PlayerToken(player: player),
+        child: Container(
+          padding: EdgeInsets.all(touchPadding),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Visual feedback during dragging (mobile)
+              if (isMobile && _dragOffset != null)
+                Positioned(
+                  left: -8,
+                  top: -8,
+                  right: -8,
+                  bottom: -8,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.green.withOpacity(0.15),
+                      border: Border.all(color: Colors.green.withOpacity(0.5), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.withOpacity(0.3),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              PlayerToken(player: player),
             if (_rotationStartPoint != null)
               Positioned(
                 top: -35,
@@ -243,7 +273,8 @@ class _DraggablePlayerState extends ConsumerState<DraggablePlayer> {
                   ),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );

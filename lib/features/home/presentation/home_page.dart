@@ -1,8 +1,15 @@
+import 'dart:convert';
+import 'dart:typed_data';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lavagna_tattica/core/theme.dart';
 import 'package:lavagna_tattica/features/auth/providers/auth_providers.dart';
+import 'package:lavagna_tattica/features/tactical_board/presentation/schemes_list_page.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -213,6 +220,10 @@ class HomePage extends ConsumerWidget {
                   ),
                 ],
                 const SizedBox(height: 24),
+
+                // ── Snapshots section
+                _SnapshotPreviewSection(ref: ref, context: context),
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -348,6 +359,204 @@ class HomePage extends ConsumerWidget {
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: badgeColor,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Snapshot Preview Section ────────────────────────────────────
+class _SnapshotPreviewSection extends ConsumerWidget {
+  final WidgetRef ref;
+  final BuildContext context;
+  const _SnapshotPreviewSection({required this.ref, required this.context});
+
+  @override
+  Widget build(BuildContext ctx, WidgetRef r) {
+    final snapshotsAsync = r.watch(userSnapshotsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header
+        Row(
+          children: [
+            const Icon(Icons.photo_library_rounded, size: 16, color: Color(0xFF9575CD)),
+            const SizedBox(width: 8),
+            const Text(
+              'SNAPSHOT RECENTI',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.textSecondary, letterSpacing: 1.4),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => context.go('/schemes'),
+              child: const Row(
+                children: [
+                  Text('Vedi tutti', style: TextStyle(fontSize: 12, color: Color(0xFF9575CD), fontWeight: FontWeight.w600)),
+                  SizedBox(width: 2),
+                  Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFF9575CD)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        snapshotsAsync.when(
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: CircularProgressIndicator(color: Color(0xFF9575CD), strokeWidth: 2),
+            ),
+          ),
+          error: (_, __) => const SizedBox.shrink(),
+          data: (snapshots) {
+            if (snapshots.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.sidebarBorderColor),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.photo_library_outlined, size: 36, color: AppTheme.textMuted.withOpacity(0.5)),
+                    const SizedBox(height: 10),
+                    const Text('Nessuno snapshot ancora', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                    const SizedBox(height: 4),
+                    const Text('Premi 📷 sulla lavagna per catturarne uno', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+                  ],
+                ),
+              );
+            }
+
+            final recent = snapshots.take(4).toList();
+            return SizedBox(
+              height: 150,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: recent.length + (snapshots.length > 4 ? 1 : 0),
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (_, i) {
+                  if (i == recent.length) {
+                    // "see all" tile
+                    return GestureDetector(
+                      onTap: () => context.go('/schemes'),
+                      child: Container(
+                        width: 100,
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardColor,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF9575CD).withOpacity(0.4)),
+                        ),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.grid_view_rounded, color: Color(0xFF9575CD), size: 28),
+                            SizedBox(height: 8),
+                            Text('Tutti gli\nsnapshot', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF9575CD), fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  final snap = recent[i];
+                  return _SnapshotThumb(snap: snap, onTap: () => context.go('/schemes'));
+                },
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+// ── Snapshot Thumb ───────────────────────────────────────────────
+class _SnapshotThumb extends StatefulWidget {
+  final dynamic snap;
+  final VoidCallback onTap;
+  const _SnapshotThumb({required this.snap, required this.onTap});
+
+  @override
+  State<_SnapshotThumb> createState() => _SnapshotThumbState();
+}
+
+class _SnapshotThumbState extends State<_SnapshotThumb> {
+  String? _viewType;
+  String? _blobUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  void _init() {
+    try {
+      final Uint8List bytes = base64Decode(widget.snap.imageBase64 as String);
+      final blob = html.Blob([bytes], 'image/png');
+      _blobUrl = html.Url.createObjectUrlFromBlob(blob);
+      _viewType = 'home-snap-${widget.snap.id}-${DateTime.now().microsecondsSinceEpoch}';
+      final capturedUrl = _blobUrl!;
+      ui_web.platformViewRegistry.registerViewFactory(_viewType!, (int _) {
+        return html.ImageElement()
+          ..src = capturedUrl
+          ..style.width = '100%'
+          ..style.height = '100%'
+          ..style.objectFit = 'cover';
+      });
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('❌ SnapshotThumb init error: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    // NOTE: do NOT revoke blob URL here - HtmlElementView loads it asynchronously
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        width: 110,
+        decoration: BoxDecoration(
+          color: AppTheme.cardColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.sidebarBorderColor),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: _viewType == null
+                  ? Container(
+                      color: AppTheme.surfaceColor,
+                      child: const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9575CD)),
+                      ),
+                    )
+                  : HtmlElementView(viewType: _viewType!),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(6, 4, 6, 5),
+              color: AppTheme.surfaceColor,
+              child: Text(
+                widget.snap.name as String,
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );

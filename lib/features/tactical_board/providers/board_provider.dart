@@ -9,6 +9,15 @@ import 'package:lavagna_tattica/features/tactical_board/data/models/equipment_mo
 class BoardNotifier extends StateNotifier<BoardState> {
   BoardNotifier() : super(_initialState());
 
+  // History stack for full undo (players + paths + equipment)
+  final List<BoardState> _history = [];
+  static const int _maxHistory = 30;
+
+  void _pushHistory() {
+    _history.add(state);
+    if (_history.length > _maxHistory) _history.removeAt(0);
+  }
+
   static BoardState _initialState() {
     final List<PlayerModel> players = [];
 
@@ -47,6 +56,7 @@ class BoardNotifier extends StateNotifier<BoardState> {
     return BoardState(players: players);
   }
 
+  /// Called continuously during drag — no history push
   void movePlayer(String id, Offset newPosition) {
     state = state.copyWith(
       players: state.players.map((p) {
@@ -58,6 +68,12 @@ class BoardNotifier extends StateNotifier<BoardState> {
     );
   }
 
+  /// Called once on drag start to save state before movement
+  void beginMove() {
+    _pushHistory();
+  }
+
+  /// Called continuously during rotate — no history push
   void rotatePlayer(String id, double rotation) {
     state = state.copyWith(
       players: state.players.map((p) {
@@ -78,26 +94,43 @@ class BoardNotifier extends StateNotifier<BoardState> {
   }
 
   void addPath(DrawingPath path) {
+    _pushHistory();
     state = state.copyWith(paths: [...state.paths, path]);
   }
 
+  /// Undo the last action (players, paths, equipment — full state)
   void undo() {
-    if (state.paths.isNotEmpty) {
+    if (_history.isNotEmpty) {
+      final prev = _history.removeLast();
       state = state.copyWith(
-        paths: state.paths.sublist(0, state.paths.length - 1),
+        players: prev.players,
+        paths: prev.paths,
+        equipment: prev.equipment,
       );
     }
   }
 
+  /// Reset only drawings (paths)
   void clear() {
+    _pushHistory();
     state = state.copyWith(paths: []);
   }
 
+  /// Reset players to default positions (keeps drawings & equipment)
+  void resetPlayers() {
+    _pushHistory();
+    final initial = _initialState();
+    state = state.copyWith(players: initial.players);
+  }
+
+  /// Full reset to initial state
   void reset() {
+    _history.clear();
     state = _initialState();
   }
 
   void addPlayer(TeamType team) {
+    _pushHistory();
     final teamPlayers = state.players.where((p) => p.team == team).toList();
     final nextNumber = teamPlayers.length + 1;
     final newId = '${team.name}$nextNumber';
@@ -122,6 +155,7 @@ class BoardNotifier extends StateNotifier<BoardState> {
   }
 
   void removePlayer(String id) {
+    _pushHistory();
     state = state.copyWith(
       players: state.players.where((p) => p.id != id).toList(),
     );
@@ -130,11 +164,12 @@ class BoardNotifier extends StateNotifier<BoardState> {
   // ─── EQUIPMENT METHODS ───
 
   void addEquipment(EquipmentType type) {
+    _pushHistory();
     final newId = 'eq_${DateTime.now().millisecondsSinceEpoch}';
     final newEquipment = EquipmentModel(
       id: newId,
       type: type,
-      position: const Offset(0.5, 0.5), // Centro del campo
+      position: const Offset(0.5, 0.5),
       rotation: 0.0,
     );
     state = state.copyWith(
@@ -143,6 +178,7 @@ class BoardNotifier extends StateNotifier<BoardState> {
   }
 
   void moveEquipment(String id, Offset newPosition) {
+    _pushHistory();
     state = state.copyWith(
       equipment: state.equipment.map((e) {
         if (e.id == id) {
@@ -165,6 +201,7 @@ class BoardNotifier extends StateNotifier<BoardState> {
   }
 
   void removeEquipment(String id) {
+    _pushHistory();
     state = state.copyWith(
       equipment: state.equipment.where((e) => e.id != id).toList(),
     );

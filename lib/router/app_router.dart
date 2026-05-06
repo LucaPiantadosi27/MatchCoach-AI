@@ -60,16 +60,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/register',
         builder: (context, state) => const RegisterPage(),
       ),
-      // Board (full-screen, no bottom bar)
-      GoRoute(
-        path: '/board',
-        builder: (context, state) => const TacticalBoardPage(),
-      ),
       GoRoute(
         path: '/install',
         builder: (context, state) => const InstallPage(),
       ),
-      // Shell with mobile bottom navigation bar
+      // Shell with sidebar (desktop) / bottom nav (mobile)
       ShellRoute(
         builder: (context, state, child) {
           return MobileShell(state: state, child: child);
@@ -78,6 +73,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/home',
             builder: (context, state) => const HomePage(),
+          ),
+          GoRoute(
+            path: '/board',
+            builder: (context, state) => const TacticalBoardPage(),
           ),
           GoRoute(
             path: '/schemes',

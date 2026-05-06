@@ -39,65 +39,28 @@ class SchemesListPage extends ConsumerWidget {
       length: 2,
       child: Scaffold(
         backgroundColor: AppTheme.surfaceColor,
-        body: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) => [
-            SliverAppBar(
-              pinned: true,
-              expandedHeight: 160,
-              backgroundColor: AppTheme.cardColor,
-              surfaceTintColor: Colors.transparent,
-              automaticallyImplyLeading: false,
-              flexibleSpace: FlexibleSpaceBar(
-                titlePadding: EdgeInsets.zero,
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF1A1040), Color(0xFF0D1117)],
-                    ),
-                  ),
-                  child: Align(
-                    alignment: Alignment.bottomLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
-                      child: Row(
-                        children: const [
-                          Icon(Icons.folder_rounded, size: 20, color: Color(0xFF9575CD)),
-                          SizedBox(width: 10),
-                          Text(
-                            'Schemi',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              bottom: const TabBar(
-                indicatorColor: Color(0xFF9575CD),
-                indicatorWeight: 3,
-                labelColor: Color(0xFF9575CD),
-                unselectedLabelColor: AppTheme.textSecondary,
-                labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                tabs: [
-                  Tab(icon: Icon(Icons.video_library_rounded, size: 18), text: 'Registrazioni'),
-                  Tab(icon: Icon(Icons.photo_library_rounded, size: 18), text: 'Snapshot'),
-                ],
-              ),
-            ),
-          ],
-          body: TabBarView(
-            children: [
-              _RecordingsTab(ref: ref, context: context),
-              _SnapshotsTab(ref: ref, context: context),
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: const Text('Schemi'),
+          backgroundColor: AppTheme.cardColor,
+          surfaceTintColor: Colors.transparent,
+          bottom: const TabBar(
+            indicatorColor: Color(0xFF9575CD),
+            indicatorWeight: 3,
+            labelColor: Color(0xFF9575CD),
+            unselectedLabelColor: AppTheme.textSecondary,
+            labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            tabs: [
+              Tab(icon: Icon(Icons.video_library_rounded, size: 18), text: 'Registrazioni'),
+              Tab(icon: Icon(Icons.photo_library_rounded, size: 18), text: 'Snapshot'),
             ],
           ),
+        ),
+        body: TabBarView(
+          children: [
+            _RecordingsTab(ref: ref, context: context),
+            _SnapshotsTab(ref: ref, context: context),
+          ],
         ),
         floatingActionButton: _buildFab(context, ref),
       ),

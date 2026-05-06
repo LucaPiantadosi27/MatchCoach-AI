@@ -56,105 +56,15 @@ class HomePage extends ConsumerWidget {
   }
 
   Widget _buildBody(BuildContext context, WidgetRef ref, user) {
-    return CustomScrollView(
-      slivers: [
-        // ── Hero SliverAppBar
-        SliverAppBar(
-          expandedHeight: 180,
-          pinned: true,
-          stretch: true,
-          backgroundColor: AppTheme.cardColor,
-          surfaceTintColor: Colors.transparent,
-          flexibleSpace: FlexibleSpaceBar(
-            stretchModes: const [StretchMode.zoomBackground],
-            background: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Gradient background
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF1A3020), Color(0xFF0D1117)],
-                    ),
-                  ),
-                ),
-                // Glow overlay
-                Positioned(
-                  top: -40,
-                  right: -40,
-                  child: Container(
-                    width: 200,
-                    height: 200,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [Color(0x3040C057), Colors.transparent],
-                      ),
-                    ),
-                  ),
-                ),
-                // Content
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 60, 24, 20),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppTheme.accentGreenDim.withValues(alpha: 0.3),
-                              border: Border.all(
-                                  color: AppTheme.accentGreenDim, width: 1),
-                            ),
-                            child: const Icon(Icons.sports_soccer_rounded,
-                                size: 22, color: AppTheme.accentGreen),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'MatchCoach-AI',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Benvenuto, ${user.email.split('@')[0]}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout_rounded, color: AppTheme.textSecondary),
-              tooltip: 'Esci',
-              onPressed: () async {
-                final authRepo = ref.read(authRepositoryProvider);
-                await authRepo.signOut();
-              },
-            ),
-          ],
-        ),
-
-        // ── Body content
-        SliverToBoxAdapter(
-          child: Padding(
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Home'),
+        backgroundColor: AppTheme.cardColor,
+        surfaceTintColor: Colors.transparent,
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -228,7 +138,6 @@ class HomePage extends ConsumerWidget {
             ),
           ),
         ),
-      ],
     );
   }
 

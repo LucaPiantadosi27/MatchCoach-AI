@@ -19,6 +19,12 @@ class HomePage extends ConsumerWidget {
     final userAsync = ref.watch(userProvider);
 
     return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Home'),
+        backgroundColor: AppTheme.cardColor,
+        surfaceTintColor: Colors.transparent,
+      ),
       body: userAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppTheme.accentGreen),
@@ -56,88 +62,76 @@ class HomePage extends ConsumerWidget {
   }
 
   Widget _buildBody(BuildContext context, WidgetRef ref, user) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Home'),
-        backgroundColor: AppTheme.cardColor,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── User card
+            _buildUserCard(context, user),
+            const SizedBox(height: 28),
+            // ── Section title
+            const Row(
               children: [
-                // ── User card
-                _buildUserCard(context, user),
-                const SizedBox(height: 28),
-
-                // ── Section title
-                const Row(
-                  children: [
-                    Icon(Icons.grid_view_rounded,
-                        size: 16, color: AppTheme.textSecondary),
-                    SizedBox(width: 8),
-                    Text(
-                      'ACCESSO RAPIDO',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textSecondary,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // ── Action cards
-                _ActionCard(
-                  icon: Icons.dashboard_rounded,
-                  title: 'Lavagna Tattica',
-                  subtitle: 'Crea un nuovo schema',
-                  accentColor: AppTheme.accentGreen,
-                  onTap: () => context.go('/board'),
-                ),
-                const SizedBox(height: 12),
-                _ActionCard(
-                  icon: Icons.video_library_rounded,
-                  title: 'Registrazioni salvate',
-                  subtitle: '',
-                  accentColor: const Color(0xFF7C4DFF),
-                  onTap: () => context.go('/schemes'),
-                ),
-                const SizedBox(height: 12),
-                _ActionCard(
-                  icon: Icons.videocam_rounded,
-                  title: 'Analisi Video',
-                  subtitle: 'Analizza automaticamente le tue partite',
-                  accentColor: Colors.orange,
-                  locked: false,
-                  onTap: () => context.go('/video'),
-                ),
-                const SizedBox(height: 12),
-                if (user.isAdmin) ...[
-                  const SizedBox(height: 12),
-                  _ActionCard(
-                    icon: Icons.monetization_on_rounded,
-                    title: 'Controllo Costi AI',
-                    subtitle: 'Monitoraggio dell\'utilizzo e dei costi API',
-                    accentColor: Colors.teal,
-                    locked: false,
-                    onTap: () => context.go('/usage'),
+                Icon(Icons.grid_view_rounded, size: 16, color: AppTheme.textSecondary),
+                SizedBox(width: 8),
+                Text(
+                  'ACCESSO RAPIDO',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textSecondary,
+                    letterSpacing: 1.4,
                   ),
-                ],
-                const SizedBox(height: 24),
-
-                // ── Snapshots section
-                _SnapshotPreviewSection(ref: ref, context: context),
-                const SizedBox(height: 24),
+                ),
               ],
             ),
-          ),
+            const SizedBox(height: 14),
+            // ── Action cards
+            _ActionCard(
+              icon: Icons.dashboard_rounded,
+              title: 'Lavagna Tattica',
+              subtitle: 'Crea un nuovo schema',
+              accentColor: AppTheme.accentGreen,
+              onTap: () => context.go('/board'),
+            ),
+            const SizedBox(height: 12),
+            _ActionCard(
+              icon: Icons.video_library_rounded,
+              title: 'Registrazioni salvate',
+              subtitle: '',
+              accentColor: const Color(0xFF7C4DFF),
+              onTap: () => context.go('/schemes'),
+            ),
+            const SizedBox(height: 12),
+            _ActionCard(
+              icon: Icons.videocam_rounded,
+              title: 'Analisi Video',
+              subtitle: 'Analizza automaticamente le tue partite',
+              accentColor: Colors.orange,
+              locked: false,
+              onTap: () => context.go('/video'),
+            ),
+            const SizedBox(height: 12),
+            if (user.isAdmin) ...[
+              const SizedBox(height: 12),
+              _ActionCard(
+                icon: Icons.monetization_on_rounded,
+                title: 'Controllo Costi AI',
+                subtitle: 'Monitoraggio dell\'utilizzo e dei costi API',
+                accentColor: Colors.teal,
+                locked: false,
+                onTap: () => context.go('/usage'),
+              ),
+            ],
+            const SizedBox(height: 24),
+            // ── Snapshots section
+            _SnapshotPreviewSection(ref: ref, context: context),
+            const SizedBox(height: 24),
+          ],
         ),
+      ),
     );
   }
 

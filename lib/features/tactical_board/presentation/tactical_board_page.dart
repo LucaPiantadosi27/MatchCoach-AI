@@ -157,9 +157,6 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
               ),
             )
           : null,
-      bottomNavigationBar: isMobile
-          ? _buildMobileBottomNav(context)
-          : null,
       body: isMobile
           ? _buildMobileLayout(context, boardState, mode, selectedColor)
           : _buildDesktopLayout(context, boardState, mode, selectedColor),
@@ -239,44 +236,6 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
     );
   }
 
-  Widget _buildMobileBottomNav(BuildContext context) {
-    return NavigationBar(
-      height: 60,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      selectedIndex: 1, // Lavagna is always selected on /board
-      onDestinationSelected: (index) {
-        switch (index) {
-          case 0: context.go('/home'); break;
-          case 1: break; // Already on board
-          case 2: context.go('/schemes'); break;
-          case 3: context.go('/video'); break;
-        }
-      },
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.home_outlined, size: 22),
-          selectedIcon: Icon(Icons.home_rounded, size: 22),
-          label: 'Home',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.sports_soccer_outlined, size: 22),
-          selectedIcon: Icon(Icons.sports_soccer_rounded, size: 22),
-          label: 'Lavagna',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.folder_outlined, size: 22),
-          selectedIcon: Icon(Icons.folder_rounded, size: 22),
-          label: 'Schemi',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.videocam_outlined, size: 22),
-          selectedIcon: Icon(Icons.videocam_rounded, size: 22),
-          label: 'Video AI',
-        ),
-      ],
-    );
-  }
-
   /// Mobile recording button - LARGE and VISIBLE for touch
   Widget _buildMobileRecordingButton(BuildContext context, BoardState boardState) {
     final recordingState = ref.watch(recordingProvider);
@@ -290,7 +249,7 @@ class _TacticalBoardPageState extends ConsumerState<TacticalBoardPage> {
       // Recording mode: STEP button + STOP button
       return Row(
         mainAxisSize: MainAxisSize.min,
-        children: [
+        children: <Widget>[
           // STEP button - large and orange
           Material(
             color: Colors.transparent,

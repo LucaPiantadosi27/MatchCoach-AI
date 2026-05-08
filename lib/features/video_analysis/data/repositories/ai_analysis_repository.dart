@@ -32,7 +32,11 @@ class AiAnalysisRepository {
   AiAnalysisRepository({required String apiKey}) : _apiKey = apiKey;
 
   /// Analizza la partita caricando il video e gestendo processi a blocchi (Chunking)
-  Future<AnalysisResult> analyzeMatchVideo(XFile videoFile) async {
+  /// [teamContext] contiene i nomi e i colori delle squadre per il prompt AI.
+  Future<AnalysisResult> analyzeMatchVideo(
+    XFile videoFile, {
+    TeamContext? teamContext,
+  }) async {
     if (_apiKey.isEmpty) throw Exception('API Key mancante.');
 
     try {
@@ -66,6 +70,7 @@ class AiAnalysisRepository {
         final prompt = _buildAnalysisPrompt(
           startTime: startTime, 
           endTime: endTime,
+          teamContext: teamContext,
         );
 
         // Fallback tra modelli per ogni chunk
@@ -258,22 +263,39 @@ class AiAnalysisRepository {
     );
   }
 
-  String _buildAnalysisPrompt({double? startTime, double? endTime}) {
-    final range = (startTime != null && endTime != null) ? "Analizza solo l'intervallo temporale $startTime - $endTime secondi." : "";
+  String _buildAnalysisPrompt({double? startTime, double? endTime, TeamContext? teamContext}) {
+    final range = (startTime != null && endTime != null)
+        ? "Analizza solo l'intervallo temporale $startTime - $endTime secondi."
+        : "";
+
+    final teamInfo = teamContext != null
+        ? '''
+CONTESTO SQUADRE (usa questi nomi nel JSON):
+- Squadra CASA: "${teamContext.homeName}" — maglia color ${teamContext.homeColor}
+- Squadra OSPITE: "${teamContext.awayName}" — maglia color ${teamContext.awayColor}
+- Tutti gli altri individui in campo sono arbitri o staff tecnico.
+Distingui le squadre dal colore della maglia.
+'''
+        : '';
+
+    final homeName = teamContext?.homeName ?? 'Squadra Casa';
+    final awayName = teamContext?.awayName ?? 'Squadra Ospite';
+
     return '''
 Analizza questo video di futsal. $range
+$teamInfo
 Ottimizzazione: 3 FPS (3 frame ogni secondo) per la massima precisione tattica.
 Restituisci SOLO un JSON valido come questo:
 {
   "homeTeam": {
-    "teamName": "Squadra Casa",
+    "teamName": "$homeName",
     "possessionAndBuildUp": { "totalPossessionPercent": 50 },
     "offensivePhase": { "shots": { "total": 0 } },
     "defensivePhase": { "pressureAndRecovery": { "ballRecoveries": 0 } },
     "advancedIndicators": { "teamXG": 0.0 }
   },
   "awayTeam": {
-    "teamName": "Squadra Ospite",
+    "teamName": "$awayName",
     "possessionAndBuildUp": { "totalPossessionPercent": 50 },
     "offensivePhase": { "shots": { "total": 0 } },
     "defensivePhase": { "pressureAndRecovery": { "ballRecoveries": 0 } },
@@ -286,4 +308,19 @@ Restituisci SOLO un JSON valido come questo:
 }
 ''';
   }
+}
+
+/// Contesto squadre da passare al prompt AI
+class TeamContext {
+  final String homeName;
+  final String homeColor;
+  final String awayName;
+  final String awayColor;
+
+  const TeamContext({
+    required this.homeName,
+    required this.homeColor,
+    required this.awayName,
+    required this.awayColor,
+  });
 }

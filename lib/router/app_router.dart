@@ -11,6 +11,7 @@ import 'package:lavagna_tattica/features/tactical_board/presentation/schemes_lis
 import 'package:lavagna_tattica/features/tactical_board/presentation/recording_viewer_page.dart';
 import 'package:lavagna_tattica/features/video_analysis/presentation/video_analysis_page.dart';
 import 'package:lavagna_tattica/features/premium/presentation/usage_stats_page.dart';
+import 'package:lavagna_tattica/features/matches/presentation/match_detail_page.dart';
 import 'package:lavagna_tattica/features/install/presentation/install_page.dart';
 import 'package:lavagna_tattica/features/shared/presentation/mobile_shell.dart';
 
@@ -96,6 +97,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/usage',
             builder: (context, state) => const UsageStatsPage(),
+          ),
+          GoRoute(
+            path: '/matches/:id',
+            builder: (context, state) {
+              final matchId = state.pathParameters['id']!;
+              return MatchDetailPage(matchId: matchId);
+            },
           ),
         ],
       ),

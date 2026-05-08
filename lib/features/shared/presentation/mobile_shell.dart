@@ -60,15 +60,18 @@ class MobileShell extends StatelessWidget {
     }
 
     // ── Desktop: sidebar + content ─────────────────────────────
+    final hideSidebar = currentPath.startsWith('/board');
     return Scaffold(
       backgroundColor: AppTheme.surfaceColor,
-      body: Row(
-        children: [
-          _AppSidebar(currentPath: currentPath),
-          const VerticalDivider(width: 1, thickness: 1, color: AppTheme.sidebarBorderColor),
-          Expanded(child: child),
-        ],
-      ),
+      body: hideSidebar
+          ? child
+          : Row(
+              children: [
+                _AppSidebar(currentPath: currentPath),
+                const VerticalDivider(width: 1, thickness: 1, color: AppTheme.sidebarBorderColor),
+                Expanded(child: child),
+              ],
+            ),
     );
   }
 

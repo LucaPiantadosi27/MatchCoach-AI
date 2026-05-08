@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
+import 'package:lavagna_tattica/core/theme.dart';
 import 'package:lavagna_tattica/features/auth/providers/auth_providers.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/repositories/ai_analysis_repository.dart';
 import 'package:lavagna_tattica/features/video_analysis/data/repositories/video_analysis_repository.dart';
@@ -12,6 +13,9 @@ import 'package:lavagna_tattica/features/video_analysis/data/models/scout_statis
 import 'package:lavagna_tattica/features/video_analysis/data/providers/video_service_provider.dart';
 import 'package:lavagna_tattica/features/video_analysis/presentation/widgets/tactical_chat_widget.dart';
 import 'package:lavagna_tattica/features/video_analysis/presentation/analyses_archive_page.dart';
+import 'package:lavagna_tattica/features/matches/presentation/calendar_page.dart';
+import 'package:lavagna_tattica/features/matches/presentation/matches_list_page.dart';
+import 'package:lavagna_tattica/features/matches/presentation/match_dashboard_page.dart';
 
 class VideoAnalysisPage extends ConsumerStatefulWidget {
   final ScoutStatistics? initialResults;
@@ -211,30 +215,41 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Se abbiamo già un ID salvato e dei risultati, siamo in modalità "Sola Lettura / Storico"
     final bool isHistoricalView = _savedAnalysisId != null && _analysisResults != null;
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Text(isHistoricalView ? 'Dettaglio Analisi' : 'Analisi Video AI'),
-        actions: [
-          // Mostra l'archivio solo se non siamo già in una vista storica
-          if (!isHistoricalView)
-            IconButton(
-              icon: const Icon(Icons.history),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AnalysesArchivePage()),
-                );
-              },
-              tooltip: 'Archivio Analisi',
-            ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: const Text('Video AI'),
+          actions: [
+            if (!isHistoricalView)
+              IconButton(
+                icon: const Icon(Icons.history),
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const AnalysesArchivePage())),
+                tooltip: 'Archivio Analisi',
+              ),
+          ],
+          bottom: const TabBar(
+            indicatorColor: Color(0xFFF59E0B),
+            labelColor: Color(0xFFF59E0B),
+            unselectedLabelColor: AppTheme.textSecondary,
+            labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            tabs: [
+              Tab(icon: Icon(Icons.videocam_rounded, size: 16), text: 'Analisi'),
+              Tab(icon: Icon(Icons.sports_soccer_rounded, size: 16), text: 'Partite'),
+              Tab(icon: Icon(Icons.calendar_month_rounded, size: 16), text: 'Calendario'),
+              Tab(icon: Icon(Icons.bar_chart_rounded, size: 16), text: 'Dashboard'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            // ── Tab 1: Analisi singola ────────────────────────
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -515,6 +530,15 @@ class _VideoAnalysisPageState extends ConsumerState<VideoAnalysisPage> {
                 analysis: _analysisResults!,
               ),
             ],
+          ],
+        ),
+            ),
+            // ── Tab 2: Partite ────────────────────────────────
+            const MatchesListPage(),
+            // ── Tab 3: Calendario ─────────────────────────────
+            const CalendarPage(),
+            // ── Tab 4: Dashboard multi-partita ────────────────
+            const MatchDashboardPage(),
           ],
         ),
       ),
